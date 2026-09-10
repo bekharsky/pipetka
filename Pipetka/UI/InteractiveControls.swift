@@ -88,7 +88,7 @@ struct HistoryRowButton: View {
     }
     .padding(.horizontal, 8)
     .padding(.vertical, 6)
-    .background(isHovering ? PlatformColor.rowHover : Color.white)
+    .background(isHovering ? PlatformColor.rowHover : PlatformColor.rowBackground)
     .cornerRadius(12)
     .overlay(
       RoundedRectangle(cornerRadius: 12)
@@ -259,7 +259,7 @@ struct FormatPillControl: View {
 
         if let selectedIndex = formats.firstIndex(of: selection) {
           RoundedRectangle(cornerRadius: activeCornerRadius)
-            .fill(Color.white)
+            .fill(PlatformColor.selectedSegmentBackground)
             .frame(width: activeWidth, height: activeHeight)
             .overlay(
               RoundedRectangle(cornerRadius: activeCornerRadius)

@@ -72,6 +72,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMe
   )
 
   func applicationDidFinishLaunching(_ notification: Notification) {
+    applyDebugAppearanceOverride()
     configureApplicationIcon()
     configureApplicationMenu()
     refreshStatusBar()
@@ -82,6 +83,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMe
       self?.showMainWindow()
       self?.requestRequiredPermissionsOnLaunch()
     }
+  }
+
+  private func applyDebugAppearanceOverride() {
+    #if DEBUG
+    switch ProcessInfo.processInfo.environment["PIPETKA_APPEARANCE"]?.lowercased() {
+    case "dark":
+      NSApp.appearance = NSAppearance(named: .darkAqua)
+    case "light":
+      NSApp.appearance = NSAppearance(named: .aqua)
+    default:
+      break
+    }
+    #endif
   }
 
   func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
