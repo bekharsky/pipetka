@@ -20,7 +20,7 @@ struct CardContainer<Content: View>: View {
     .cornerRadius(14)
     .overlay(
       RoundedRectangle(cornerRadius: 14)
-        .stroke(Color.black.opacity(0.07), lineWidth: 1)
+        .stroke(PlatformColor.hairlineBorder, lineWidth: 1)
     )
   }
 }
@@ -194,31 +194,16 @@ enum PlatformSymbol {
 }
 
 enum PlatformColor {
-  static let chromeBackground = color(
-    from: NSColor(
-      srgbRed: 0.945,
-      green: 0.953,
-      blue: 0.965,
-      alpha: 1
-    )
-  )
-  static let cardBackground = color(from: NSColor.white)
-  static let previewPlaceholder = color(
-    from: NSColor(
-      srgbRed: 0.94,
-      green: 0.95,
-      blue: 0.97,
-      alpha: 1
-    )
-  )
-  static let rowHover = color(
-    from: NSColor(
-      srgbRed: 0.92,
-      green: 0.96,
-      blue: 1.0,
-      alpha: 1
-    )
-  )
+  // Keep AppKit's semantic colors dynamic. Converting them to RGB here would
+  // freeze their value for one appearance and can leave white text on a white
+  // surface after macOS switches to Dark Mode.
+  static let chromeBackground = color(from: .windowBackgroundColor)
+  static let cardBackground = color(from: .controlBackgroundColor)
+  static let rowBackground = color(from: .controlBackgroundColor)
+  static let selectedSegmentBackground = color(from: .textBackgroundColor)
+  static let previewPlaceholder = color(from: .underPageBackgroundColor)
+  static let rowHover = Color.accentColor.opacity(0.12)
+  static let hairlineBorder = color(from: .separatorColor)
   static let headerButtonForeground = color(
     from: NSColor(
       srgbRed: 0.31,
@@ -317,12 +302,6 @@ enum PlatformColor {
   )
 
   static func color(from nsColor: NSColor) -> Color {
-    let rgb = nsColor.usingColorSpace(.deviceRGB) ?? nsColor
-    return Color(
-      red: Double(rgb.redComponent),
-      green: Double(rgb.greenComponent),
-      blue: Double(rgb.blueComponent),
-      opacity: Double(rgb.alphaComponent)
-    )
+    Color(nsColor: nsColor)
   }
 }
