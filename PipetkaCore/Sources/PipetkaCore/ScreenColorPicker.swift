@@ -1,18 +1,33 @@
 // Screen color picker with magnifier lens
 import Cocoa
+import ScreenCaptureKit
 
 public struct PickedColorPayload {
-  public let red: Int
-  public let green: Int
-  public let blue: Int
-  public let hex: String
+  public let color: NSColor
   public let previewPng: Data
-  
+
+  private var components: ExtendedSRGBComponents? {
+    ColorUtilities.extendedSRGBComponents(from: color)
+  }
+
+  public var red: Int { ColorUtilities.byteComponent(components?.red ?? 0) }
+  public var green: Int { ColorUtilities.byteComponent(components?.green ?? 0) }
+  public var blue: Int { ColorUtilities.byteComponent(components?.blue ?? 0) }
+  public var hex: String { ColorUtilities.hexString(from: color) }
+
+  public init(color: NSColor, previewPng: Data) {
+    self.color = color
+    self.previewPng = previewPng
+  }
+
+  @available(*, deprecated, message: "Use init(color:previewPng:) to preserve extended-range color values")
   public init(red: Int, green: Int, blue: Int, hex: String, previewPng: Data) {
-    self.red = red
-    self.green = green
-    self.blue = blue
-    self.hex = hex
+    self.color = NSColor(
+      srgbRed: CGFloat(red) / 255,
+      green: CGFloat(green) / 255,
+      blue: CGFloat(blue) / 255,
+      alpha: 1
+    )
     self.previewPng = previewPng
   }
 }
@@ -22,11 +37,12 @@ public final class ScreenColorPicker {
   private let showWindow: () -> Void
   private let onPick: (PickedColorPayload) -> Void
   private let onCancel: (() -> Void)?
-  private let usesTestSampling: Bool
+  private let pixelSampler: PixelSampler
   private var overlayPanels: [PickerOverlayPanel] = []
   private var lensPanel: PickerLensPanel?
   private var lensView: PickerLensView?
   private var selectionPoint: CGPoint?
+  private var samplingGeneration = 0
 
   public init(
     hideWindow: @escaping () -> Void,
@@ -39,7 +55,7 @@ public final class ScreenColorPicker {
     self.showWindow = showWindow
     self.onPick = onPick
     self.onCancel = onCancel
-    self.usesTestSampling = usesTestSampling
+    self.pixelSampler = PixelSampler(usesTestSampling: usesTestSampling)
   }
 
   public func start() {
@@ -48,6 +64,8 @@ public final class ScreenColorPicker {
     }
 
     hideWindow()
+    samplingGeneration += 1
+    pixelSampler.prepareHDRCapture()
 
     for screen in NSScreen.screens {
       let panel = PickerOverlayPanel(
@@ -97,10 +115,7 @@ public final class ScreenColorPicker {
     showWindow()
     onPick(
       PickedColorPayload(
-        red: sample.red,
-        green: sample.green,
-        blue: sample.blue,
-        hex: sample.hex,
+        color: sample.color,
         previewPng: sample.previewPng
       )
     )
@@ -108,10 +123,7 @@ public final class ScreenColorPicker {
 
   fileprivate func confirmKeyboardSelection() {
     let point = selectionPoint ?? NSEvent.mouseLocation
-    guard let sample = PixelSampler.sample(at: point, usesTestSampling: usesTestSampling) else {
-      return
-    }
-    complete(with: sample)
+    confirmSelection(at: point)
   }
 
   fileprivate func moveSelection(by offset: CGVector) {
@@ -137,13 +149,30 @@ public final class ScreenColorPicker {
   }
 
   fileprivate func refresh(at mousePoint: CGPoint) {
-    guard let sample = PixelSampler.sample(at: mousePoint, usesTestSampling: usesTestSampling) else {
-      return
-    }
-
     selectionPoint = mousePoint
+    let generation = samplingGeneration
+    pixelSampler.sample(at: mousePoint, requiresHDR: false) { [weak self] sample in
+      guard let self, let sample, generation == self.samplingGeneration,
+            self.selectionPoint == mousePoint else {
+        return
+      }
+      self.display(sample: sample, at: mousePoint)
+    }
+  }
+
+  fileprivate func confirmSelection(at point: CGPoint) {
+    let generation = samplingGeneration
+    pixelSampler.sample(at: point, requiresHDR: true) { [weak self] sample in
+      guard let self, let sample, generation == self.samplingGeneration else {
+        return
+      }
+      self.complete(with: sample)
+    }
+  }
+
+  private func display(sample: PixelSample, at point: CGPoint) {
     lensView?.sample = sample
-    lensView?.mousePoint = mousePoint
+    lensView?.mousePoint = point
     lensView?.needsDisplay = true
 
     guard let lensPanel else {
@@ -151,21 +180,16 @@ public final class ScreenColorPicker {
     }
 
     let lensFrame = PickerLensView.frameForLens(
-      around: mousePoint,
+      around: point,
       visibleFrame: sample.screenFrame
     )
     lensPanel.setFrame(lensFrame, display: true)
     lensPanel.orderFrontRegardless()
   }
 
-  fileprivate func confirmSelection(at point: CGPoint) {
-    guard let sample = PixelSampler.sample(at: point, usesTestSampling: usesTestSampling) else {
-      return
-    }
-    complete(with: sample)
-  }
-
   private func tearDownOverlay() {
+    samplingGeneration += 1
+    pixelSampler.cancel()
     overlayPanels.forEach { $0.orderOut(nil) }
     overlayPanels.removeAll()
     lensPanel?.orderOut(nil)
@@ -369,15 +393,10 @@ final class PickerLensView: NSView {
     context.restoreGState()
 
     let swatchRect = CGRect(x: 12, y: 10, width: 18, height: 18)
-    NSColor(
-      calibratedRed: CGFloat(sample.red) / 255,
-      green: CGFloat(sample.green) / 255,
-      blue: CGFloat(sample.blue) / 255,
-      alpha: 1
-    ).setFill()
+    ColorUtilities.displayColor(from: sample.color).setFill()
     NSBezierPath(roundedRect: swatchRect, xRadius: 6, yRadius: 6).fill()
 
-    let label = sample.hex
+    let label = sample.displayValue
     let attributes: [NSAttributedString.Key: Any] = [
       .font: NSFont.monospacedSystemFont(ofSize: 13, weight: .bold),
       .foregroundColor: NSColor(calibratedWhite: 0.95, alpha: 1)
@@ -423,27 +442,105 @@ final class PickerLensView: NSView {
 // MARK: - Pixel sampling
 
 private struct PixelSample {
-  let red: Int
-  let green: Int
-  let blue: Int
-  let hex: String
+  let color: NSColor
   let previewImage: CGImage
   let previewPng: Data
   let screenFrame: CGRect
+
+  var components: ExtendedSRGBComponents? {
+    ColorUtilities.extendedSRGBComponents(from: color)
+  }
+
+  var hex: String { ColorUtilities.hexString(from: color) }
+  var isExtendedRange: Bool {
+    guard let components else { return false }
+    return ColorUtilities.isExtendedRange(components)
+  }
+  var displayValue: String {
+    isExtendedRange ? ColorUtilities.cssExtendedSRGBString(from: color, precision: 2) : hex
+  }
 }
 
-private enum PixelSampler {
-  static func sample(at point: CGPoint, usesTestSampling: Bool = false) -> PixelSample? {
+private final class PixelSampler {
+  private let usesTestSampling: Bool
+  private var hdrCapture: HDRPixelCapture?
+
+  init(usesTestSampling: Bool) {
+    self.usesTestSampling = usesTestSampling
+  }
+
+  func prepareHDRCapture() {
+    guard !usesTestSampling, #available(macOS 15.0, *) else {
+      return
+    }
+
+    if hdrCapture == nil {
+      hdrCapture = HDRPixelCapture()
+    }
+    hdrCapture?.prepare()
+  }
+
+  func cancel() {
+    hdrCapture?.cancel()
+  }
+
+  func sample(
+    at point: CGPoint,
+    requiresHDR: Bool,
+    preview: PixelSample? = nil,
+    completion: @escaping (PixelSample?) -> Void
+  ) {
     guard
       let screen = NSScreen.screens.first(where: { NSMouseInRect(point, $0.frame, false) })
     else {
-      return nil
+      completion(nil)
+      return
     }
 
     if usesTestSampling {
-      return testSample(at: point, screen: screen)
+      completion(Self.testSample(at: point, screen: screen))
+      return
     }
 
+    guard requiresHDR else {
+      completion(Self.legacySample(at: point, screen: screen))
+      return
+    }
+
+    if #available(macOS 15.0, *), let hdrCapture {
+      let preview = preview ?? Self.legacySample(at: point, screen: screen)
+      hdrCapture.sample(at: point, on: screen) { sample in
+        guard let sample, Self.isUsableHDRColor(sample.color) else {
+          completion(preview)
+          return
+        }
+
+        completion(
+          PixelSample(
+            color: sample.color,
+            previewImage: preview?.previewImage ?? sample.previewImage,
+            previewPng: preview?.previewPng ?? sample.previewPng,
+            screenFrame: preview?.screenFrame ?? sample.screenFrame
+          )
+        )
+      }
+      return
+    }
+
+    completion(Self.legacySample(at: point, screen: screen))
+  }
+
+  private static func isUsableHDRColor(_ color: NSColor) -> Bool {
+    guard let components = ColorUtilities.extendedSRGBComponents(from: color) else {
+      return false
+    }
+
+    return [components.red, components.green, components.blue].allSatisfy {
+      $0.isFinite && $0 >= -1 && $0 <= 1024
+    }
+  }
+
+  fileprivate static func legacySample(at point: CGPoint, screen: NSScreen) -> PixelSample? {
     guard let displayNumber = screen.deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")] as? NSNumber else {
       return nil
     }
@@ -476,21 +573,12 @@ private enum PixelSampler {
       return nil
     }
 
-    let bitmap = NSBitmapImageRep(cgImage: pixelImage)
-    guard let color = bitmap.colorAt(x: 0, y: 0)?.usingColorSpace(.deviceRGB) else {
+    guard let color = color(from: pixelImage) else {
       return nil
     }
 
-    let red = Int(round(color.redComponent * 255))
-    let green = Int(round(color.greenComponent * 255))
-    let blue = Int(round(color.blueComponent * 255))
-    let hex = String(format: "#%02X%02X%02X", red, green, blue)
-
     return PixelSample(
-      red: red,
-      green: green,
-      blue: blue,
-      hex: hex,
+      color: color,
       previewImage: previewImage,
       previewPng: previewPng,
       screenFrame: screen.visibleFrame
@@ -514,7 +602,7 @@ private enum PixelSampler {
     )
   }
 
-  private static func pngData(for image: CGImage) -> Data? {
+  fileprivate static func pngData(for image: CGImage) -> Data? {
     let bitmap = NSBitmapImageRep(cgImage: image)
     return bitmap.representation(using: .png, properties: [:])
   }
@@ -545,13 +633,346 @@ private enum PixelSampler {
     }
 
     return PixelSample(
-      red: red,
-      green: green,
-      blue: blue,
-      hex: String(format: "#%02X%02X%02X", red, green, blue),
+      color: color,
       previewImage: previewImage,
       previewPng: previewPng,
       screenFrame: screen.visibleFrame
     )
+  }
+
+  fileprivate static func color(
+    from image: CGImage,
+    pixelX: Int = 0,
+    pixelY: Int = 0
+  ) -> NSColor? {
+    if image.bitsPerComponent == 16,
+       image.bitsPerPixel == 64,
+       image.bitmapInfo.contains(.floatComponents) {
+      guard
+        let providerData = image.dataProvider?.data,
+        let bytes = CFDataGetBytePtr(providerData)
+      else {
+        return nil
+      }
+
+      let x = min(max(pixelX, 0), image.width - 1)
+      let y = min(max(pixelY, 0), image.height - 1)
+      let pixelOffset = y * image.bytesPerRow + x * 8
+      guard pixelOffset >= 0,
+            pixelOffset + 8 <= CFDataGetLength(providerData) else {
+        return nil
+      }
+
+      func halfToFloat(_ bits: UInt16) -> Float {
+        let sign = UInt32(bits & 0x8000) << 16
+        let exponent = UInt32((bits >> 10) & 0x1F)
+        let mantissa = UInt32(bits & 0x03FF)
+
+        if exponent == 0 {
+          guard mantissa != 0 else {
+            return Float(bitPattern: sign)
+          }
+
+          var normalizedMantissa = mantissa
+          var normalizedExponent: Int32 = -14
+          while normalizedMantissa & 0x0400 == 0 {
+            normalizedMantissa <<= 1
+            normalizedExponent -= 1
+          }
+          normalizedMantissa &= 0x03FF
+          let floatExponent = UInt32(normalizedExponent + 127)
+          return Float(
+            bitPattern: sign | (floatExponent << 23) | (normalizedMantissa << 13)
+          )
+        }
+
+        if exponent == 0x1F {
+          return Float(bitPattern: sign | 0x7F800000 | (mantissa << 13))
+        }
+
+        let floatExponent = UInt32(Int32(exponent) - 15 + 127)
+        return Float(bitPattern: sign | (floatExponent << 23) | (mantissa << 13))
+      }
+
+      func halfComponent(at offset: Int) -> CGFloat {
+        let low = UInt16(bytes[pixelOffset + offset])
+        let high = UInt16(bytes[pixelOffset + offset + 1]) << 8
+        let value = halfToFloat(low | high)
+        return value.isFinite ? CGFloat(value) : (value.sign == .minus ? 0 : 1)
+      }
+
+      let channelOffsets: (red: Int, green: Int, blue: Int, alpha: Int?)
+      let isPremultiplied: Bool
+      switch image.alphaInfo {
+      case .premultipliedLast:
+        channelOffsets = (0, 2, 4, 6)
+        isPremultiplied = true
+      case .last:
+        channelOffsets = (0, 2, 4, 6)
+        isPremultiplied = false
+      case .premultipliedFirst:
+        channelOffsets = (2, 4, 6, 0)
+        isPremultiplied = true
+      case .first:
+        channelOffsets = (2, 4, 6, 0)
+        isPremultiplied = false
+      case .noneSkipLast:
+        channelOffsets = (0, 2, 4, nil)
+        isPremultiplied = false
+      case .noneSkipFirst:
+        channelOffsets = (2, 4, 6, nil)
+        isPremultiplied = false
+      default:
+        return nil
+      }
+
+      let alpha = channelOffsets.alpha.map(halfComponent) ?? 1
+      guard alpha.isFinite, alpha > 0 else {
+        return nil
+      }
+
+      let divisor = isPremultiplied ? alpha : 1
+      let components = [
+        halfComponent(at: channelOffsets.red) / divisor,
+        halfComponent(at: channelOffsets.green) / divisor,
+        halfComponent(at: channelOffsets.blue) / divisor,
+        alpha
+      ]
+
+      let colorSpace = image.colorSpace
+        ?? CGColorSpace(name: CGColorSpace.extendedSRGB)
+      guard let colorSpace else {
+        return nil
+      }
+      guard let cgColor = CGColor(
+        colorSpace: colorSpace,
+        components: components
+      ) else {
+        return nil
+      }
+
+      return NSColor(cgColor: cgColor)?.usingColorSpace(.extendedSRGB)
+    }
+
+    let bitmap = NSBitmapImageRep(cgImage: image)
+    let x = min(max(pixelX, 0), image.width - 1)
+    let y = min(max(pixelY, 0), image.height - 1)
+    guard let sampled = bitmap.colorAt(x: x, y: y) else {
+      return nil
+    }
+    return sampled.usingColorSpace(.extendedSRGB) ?? sampled.usingColorSpace(.deviceRGB)
+  }
+}
+
+private final class HDRPixelCapture {
+  private struct PendingRequest {
+    let point: CGPoint
+    let screen: NSScreen
+    let filter: SCContentFilter
+    let pixelScale: CGFloat
+    let generation: Int
+    let completion: (PixelSample?) -> Void
+  }
+
+  private var filters: [CGDirectDisplayID: SCContentFilter] = [:]
+  private var isPreparing = false
+  private var generation = 0
+  private var pendingRequest: PendingRequest?
+  private var isCaptureInFlight = false
+  private var captureSequence = 0
+  private var activeCaptureID: Int?
+  private var scheduledStart: DispatchWorkItem?
+  private var lastCaptureStart = 0.0
+
+  private let minimumCaptureInterval = 1.0 / 30.0
+  private let captureTimeout = 0.75
+
+  func prepare() {
+    guard !isPreparing, filters.isEmpty else {
+      return
+    }
+
+    isPreparing = true
+    SCShareableContent.getExcludingDesktopWindows(false, onScreenWindowsOnly: true) {
+      [weak self] content, _ in
+      DispatchQueue.main.async {
+        guard let self else { return }
+        self.isPreparing = false
+
+        guard let content else {
+          return
+        }
+
+        let currentProcessID = ProcessInfo.processInfo.processIdentifier
+        let currentApplication = content.applications.first { $0.processID == currentProcessID }
+
+        for display in content.displays {
+          let filter: SCContentFilter
+          if let currentApplication {
+            filter = SCContentFilter(
+              display: display,
+              excludingApplications: [currentApplication],
+              exceptingWindows: []
+            )
+          } else {
+            filter = SCContentFilter(display: display, excludingWindows: [])
+          }
+          self.filters[display.displayID] = filter
+        }
+      }
+    }
+  }
+
+  func cancel() {
+    generation += 1
+    pendingRequest = nil
+    scheduledStart?.cancel()
+    scheduledStart = nil
+    captureSequence += 1
+    activeCaptureID = nil
+    isCaptureInFlight = false
+  }
+
+  @available(macOS 15.0, *)
+  func sample(
+    at point: CGPoint,
+    on screen: NSScreen,
+    completion: @escaping (PixelSample?) -> Void
+  ) {
+    guard
+      let displayNumber = screen.deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")] as? NSNumber,
+      let filter = filters[CGDirectDisplayID(displayNumber.uint32Value)]
+    else {
+      completion(nil)
+      return
+    }
+
+    pendingRequest = PendingRequest(
+      point: point,
+      screen: screen,
+      filter: filter,
+      pixelScale: max(CGFloat(filter.pointPixelScale), 1),
+      generation: generation,
+      completion: completion
+    )
+    startNextCapture()
+  }
+
+  @available(macOS 15.0, *)
+  private func startNextCapture() {
+    guard !isCaptureInFlight, let request = pendingRequest else {
+      return
+    }
+
+    let now = ProcessInfo.processInfo.systemUptime
+    let delay = minimumCaptureInterval - (now - lastCaptureStart)
+    if delay > 0 {
+      guard scheduledStart == nil else { return }
+      let workItem = DispatchWorkItem { [weak self] in
+        guard let self else { return }
+        self.scheduledStart = nil
+        self.startNextCapture()
+      }
+      scheduledStart = workItem
+      DispatchQueue.main.asyncAfter(
+        deadline: .now() + delay,
+        execute: workItem
+      )
+      return
+    }
+
+    pendingRequest = nil
+    isCaptureInFlight = true
+    captureSequence += 1
+    let captureID = captureSequence
+    activeCaptureID = captureID
+    lastCaptureStart = now
+
+    let outputSize: CGFloat = 1
+    let logicalCaptureSize = outputSize / request.pixelScale
+    let localX = request.point.x - request.screen.frame.minX
+    let localY = request.screen.frame.height
+      - (request.point.y - request.screen.frame.minY)
+    let halfSize = logicalCaptureSize / 2
+    let sourceX = min(
+      max(localX - halfSize, 0),
+      max(request.screen.frame.width - logicalCaptureSize, 0)
+    )
+    let sourceY = min(
+      max(localY - halfSize, 0),
+      max(request.screen.frame.height - logicalCaptureSize, 0)
+    )
+    let sourceRect = CGRect(
+      x: sourceX,
+      y: sourceY,
+      width: logicalCaptureSize,
+      height: logicalCaptureSize
+    )
+
+    let configuration = SCStreamConfiguration(preset: .captureHDRScreenshotLocalDisplay)
+    configuration.sourceRect = sourceRect
+    configuration.width = 1
+    configuration.height = 1
+    configuration.showsCursor = false
+
+    SCScreenshotManager.captureImage(
+      contentFilter: request.filter,
+      configuration: configuration
+    ) { [weak self] image, _ in
+      self?.finishCapture(request, image: image, captureID: captureID)
+    }
+
+    DispatchQueue.main.asyncAfter(deadline: .now() + captureTimeout) { [weak self] in
+      guard let self,
+            self.isCaptureInFlight,
+            self.activeCaptureID == captureID else {
+        return
+      }
+      self.finishCapture(request, image: nil, captureID: captureID)
+    }
+  }
+
+  @available(macOS 15.0, *)
+  private func finishCapture(
+    _ request: PendingRequest,
+    image: CGImage?,
+    captureID: Int
+  ) {
+    DispatchQueue.main.async {
+      guard self.isCaptureInFlight,
+            self.activeCaptureID == captureID else {
+        return
+      }
+
+      self.isCaptureInFlight = false
+      self.activeCaptureID = nil
+      defer { self.startNextCapture() }
+
+      guard request.generation == self.generation,
+            let image,
+            image.width > 0,
+            image.height > 0,
+            image.bitsPerComponent == 16,
+            image.bitsPerPixel == 64,
+            image.bitmapInfo.contains(.floatComponents),
+            image.bytesPerRow >= image.width * 8,
+            let color = PixelSampler.color(
+              from: image,
+              pixelX: image.width / 2,
+              pixelY: image.height / 2
+            ) else {
+        request.completion(nil)
+        return
+      }
+
+      request.completion(
+        PixelSample(
+          color: color,
+          previewImage: image,
+          previewPng: PixelSampler.pngData(for: image) ?? Data(),
+          screenFrame: request.screen.visibleFrame
+        )
+      )
+    }
   }
 }

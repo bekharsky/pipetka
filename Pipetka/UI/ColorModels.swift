@@ -5,6 +5,7 @@ enum ColorFormat: Int, CaseIterable {
   case hex
   case rgb
   case hsl
+  case extendedRGB
   case swiftUI
 
   var label: String {
@@ -15,6 +16,8 @@ enum ColorFormat: Int, CaseIterable {
       return "RGB"
     case .hsl:
       return "HSL"
+    case .extendedRGB:
+      return "CSS HDR"
     case .swiftUI:
       return "SwiftUI"
     }
@@ -27,20 +30,37 @@ struct PickedColor: Identifiable {
   let previewImage: NSImage?
   let pickedAt: Date
 
+  var extendedSRGBColor: NSColor {
+    color.usingColorSpace(.extendedSRGB) ?? color
+  }
+
   var rgbColor: NSColor {
-    color.usingColorSpace(.deviceRGB) ?? color
+    extendedSRGBColor
+  }
+
+  var displayColor: NSColor {
+    ColorUtilities.displayColor(from: extendedSRGBColor)
+  }
+
+  var extendedComponents: ExtendedSRGBComponents? {
+    ColorUtilities.extendedSRGBComponents(from: extendedSRGBColor)
+  }
+
+  var isExtendedRange: Bool {
+    guard let extendedComponents else { return false }
+    return ColorUtilities.isExtendedRange(extendedComponents)
   }
 
   var red: Int {
-    Int(round(rgbColor.redComponent * 255))
+    ColorUtilities.byteComponent(extendedComponents?.red ?? 0)
   }
 
   var green: Int {
-    Int(round(rgbColor.greenComponent * 255))
+    ColorUtilities.byteComponent(extendedComponents?.green ?? 0)
   }
 
   var blue: Int {
-    Int(round(rgbColor.blueComponent * 255))
+    ColorUtilities.byteComponent(extendedComponents?.blue ?? 0)
   }
 }
 
@@ -80,25 +100,80 @@ enum PaletteExportFormat: Int, CaseIterable {
 func formatColor(_ item: PickedColor, format: ColorFormat) -> String {
   switch format {
   case .hex:
+    guard !item.isExtendedRange else {
+      return "HDR (use CSS HDR)"
+    }
     return String(format: "#%02X%02X%02X", item.red, item.green, item.blue)
   case .rgb:
+    guard !item.isExtendedRange else {
+      return "HDR (use CSS HDR)"
+    }
     return "rgb(\(item.red), \(item.green), \(item.blue))"
   case .hsl:
+    guard !item.isExtendedRange else {
+      return "HDR (use CSS HDR)"
+    }
     return formatHsl(item)
+  case .extendedRGB:
+    return ColorUtilities.cssExtendedSRGBString(from: item.extendedSRGBColor)
   case .swiftUI:
+    let components = item.extendedComponents ?? ExtendedSRGBComponents(red: 0, green: 0, blue: 0)
+    if item.isExtendedRange {
+      return String(
+        format: "Color(nsColor: NSColor(colorSpace: .extendedSRGB, components: [%.3f, %.3f, %.3f, 1.000], count: 4))",
+        Double(components.red),
+        Double(components.green),
+        Double(components.blue)
+      )
+    }
     return String(
       format: "Color(red: %.3f, green: %.3f, blue: %.3f)",
-      Double(item.red) / 255,
-      Double(item.green) / 255,
-      Double(item.blue) / 255
+      Double(components.red),
+      Double(components.green),
+      Double(components.blue)
     )
   }
 }
 
+func displayFormatColor(_ item: PickedColor, format: ColorFormat) -> String {
+  let value = formatColor(item, format: format)
+  guard format == .swiftUI, value.hasPrefix("Color(nsColor: NSColor(") else {
+    return value
+  }
+
+  var displayValue = value
+  if let componentsStart = displayValue.range(of: "components: ["),
+     let componentsEnd = displayValue.range(
+       of: "], count: 4))",
+       range: componentsStart.upperBound..<displayValue.endIndex
+     ) {
+    let componentValues = displayValue[componentsStart.upperBound..<componentsEnd.lowerBound]
+      .split(separator: ",")
+      .map { $0.trimmingCharacters(in: .whitespaces) }
+    let components = stride(from: 0, to: componentValues.count, by: 2)
+      .map { index in
+        componentValues[index..<min(index + 2, componentValues.count)].joined(separator: ", ")
+      }
+      .joined(separator: ",\n      ")
+    displayValue.replaceSubrange(
+      componentsStart.lowerBound..<componentsEnd.lowerBound,
+      with: "components: [\(components)]"
+    )
+  }
+
+  return displayValue
+    .replacingOccurrences(
+      of: "Color(nsColor: NSColor(",
+      with: "Color(nsColor:\n  NSColor(\n    "
+    )
+    .replacingOccurrences(of: ", components: [", with: ",\n    components: [")
+    .replacingOccurrences(of: ", count: 4))", with: ",\n    count: 4\n  )\n)")
+}
+
 func formatHsl(_ item: PickedColor) -> String {
-  let red = Double(item.red) / 255
-  let green = Double(item.green) / 255
-  let blue = Double(item.blue) / 255
+  let red = Double(ColorUtilities.clampedUnit(item.extendedSRGBColor.redComponent))
+  let green = Double(ColorUtilities.clampedUnit(item.extendedSRGBColor.greenComponent))
+  let blue = Double(ColorUtilities.clampedUnit(item.extendedSRGBColor.blueComponent))
   let maxValue = max(red, max(green, blue))
   let minValue = min(red, min(green, blue))
   let delta = maxValue - minValue
@@ -129,11 +204,17 @@ func namedColorMatch(for item: PickedColor) -> NamedColorMatch {
 }
 
 func namedColorName(for item: PickedColor) -> String {
-  namedColorMatch(for: item).name
+  if item.isExtendedRange {
+    return "HDR color"
+  }
+  return namedColorMatch(for: item).name
 }
 
 func historySubtitle(for item: PickedColor) -> String {
-  "\(namedColorName(for: item)) • \(formatColor(item, format: .hex))"
+  let value = item.isExtendedRange
+    ? formatColor(item, format: .extendedRGB)
+    : formatColor(item, format: .hex)
+  return "\(namedColorName(for: item)) • \(value)"
 }
 
 func recentPickMenuText(for item: PickedColor, format: ColorFormat) -> String {
@@ -146,16 +227,16 @@ func exportColors(_ items: [PickedColor], format: PaletteExportFormat) -> String
   switch format {
   case .cssVariables:
     let body = entries.map { entry in
-      "  --\(entry.slug): \(formatColor(entry.item, format: .hex)); /* \(entry.name) */"
+      "  --\(entry.slug): \(cssExportValue(for: entry.item)); /* \(entry.name) */"
     }.joined(separator: "\n")
     return ":root {\n\(body)\n}"
   case .scssVariables:
     return entries.map { entry in
-      "$\(entry.slug): \(formatColor(entry.item, format: .hex)); // \(entry.name)"
+      "$\(entry.slug): \(cssExportValue(for: entry.item)); // \(entry.name)"
     }.joined(separator: "\n")
   case .tailwindColors:
     let body = entries.map { entry in
-      "      '\(entry.slug)': '\(formatColor(entry.item, format: .hex))', // \(entry.name)"
+      "      '\(entry.slug)': '\(cssExportValue(for: entry.item))', // \(entry.name)"
     }.joined(separator: "\n")
     return """
 module.exports = {
@@ -176,12 +257,19 @@ module.exports = {
     "hex": "\(formatColor(entry.item, format: .hex))",
     "rgb": "\(formatColor(entry.item, format: .rgb))",
     "hsl": "\(formatColor(entry.item, format: .hsl))",
+    "extendedRGB": "\(formatColor(entry.item, format: .extendedRGB))",
     "swiftUI": "\(formatColor(entry.item, format: .swiftUI))"
   }
 """
     }.joined(separator: ",\n")
     return "{\n\(body)\n}"
   }
+}
+
+private func cssExportValue(for item: PickedColor) -> String {
+  item.isExtendedRange
+    ? formatColor(item, format: .extendedRGB)
+    : formatColor(item, format: .hex)
 }
 
 private struct ExportEntry {

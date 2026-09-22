@@ -45,12 +45,18 @@ final class PipetkaStore: ObservableObject {
   }
 
   func addPick(red: Int, green: Int, blue: Int, previewPng: Data?) {
-    let color = NSColor(
-      srgbRed: CGFloat(red) / 255,
-      green: CGFloat(green) / 255,
-      blue: CGFloat(blue) / 255,
-      alpha: 1
+    addPick(
+      color: NSColor(
+        srgbRed: CGFloat(red) / 255,
+        green: CGFloat(green) / 255,
+        blue: CGFloat(blue) / 255,
+        alpha: 1
+      ),
+      previewPng: previewPng
     )
+  }
+
+  func addPick(color: NSColor, previewPng: Data?) {
     let item = PickedColor(
       color: color,
       previewImage: previewPng.flatMap(NSImage.init(data:)),
@@ -127,7 +133,7 @@ final class PipetkaStore: ObservableObject {
     Array(history.prefix(10)).map {
       RecentPickMenuItem(
         text: recentPickMenuText(for: $0, format: format),
-        color: $0.rgbColor
+        color: $0.displayColor
       )
     }
   }

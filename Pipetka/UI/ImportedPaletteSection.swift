@@ -83,7 +83,7 @@ struct ImportedPaletteSection: View {
               HStack(spacing: 8) {
                 ForEach(palette.colors) { item in
                   PaletteSwatchChip(
-                    color: item.rgbColor,
+                    color: item.displayColor,
                     toolTip: swatchToolTip(for: item),
                     onBurst: showBurst(frame:color:),
                     action: {
@@ -157,7 +157,10 @@ struct SwatchBurst: Identifiable {
 
 func swatchToolTip(for item: PickedColor) -> String {
   let match = NamedColorLookup.nearestMatch(red: item.red, green: item.green, blue: item.blue)
-  return "\(match.name)\n\(formatColor(item, format: .hex))"
+  let value = item.isExtendedRange
+    ? formatColor(item, format: .extendedRGB)
+    : formatColor(item, format: .hex)
+  return "\(match.name)\n\(value)"
 }
 
 struct PreviewImageView: View {

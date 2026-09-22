@@ -23,6 +23,7 @@ struct HistoryRowButton: View {
           action()
         }
       )
+      .frame(maxWidth: .infinity, maxHeight: .infinity)
       .focusable()
       .focused($isFocused)
       .disablesSystemFocusEffectWhenAvailable()
@@ -53,52 +54,73 @@ struct HistoryRowButton: View {
         isHovering = hovering
       }
     }
+    .frame(maxWidth: .infinity, alignment: .leading)
   }
 
   private var rowContent: some View {
-    HStack(spacing: 10) {
-      preview
+    GeometryReader { proxy in
+      HStack(alignment: .top, spacing: 10) {
+        preview
 
-      VStack(alignment: .leading, spacing: 4) {
-        Text(formatColor(item, format: format))
-          .font(.system(size: 13, weight: .semibold, design: .monospaced))
-          .lineLimit(1)
+        VStack(alignment: .leading, spacing: 4) {
+          Text(displayFormatColor(item, format: format))
+            .font(.system(size: 13, weight: .semibold, design: .monospaced))
+            .lineLimit(format == .swiftUI ? 8 : 1)
+            .multilineTextAlignment(.leading)
+            .fixedSize(horizontal: false, vertical: true)
+            .frame(maxWidth: .infinity, alignment: .leading)
 
-        HStack(spacing: 6) {
-          RoundedRectangle(cornerRadius: 8)
-            .fill(PlatformColor.color(from: item.rgbColor))
-            .frame(width: 16, height: 16)
-            .overlay(
-              RoundedRectangle(cornerRadius: 8)
-                .stroke(Color.black.opacity(0.08), lineWidth: 1)
-            )
+          HStack(spacing: 6) {
+            RoundedRectangle(cornerRadius: 8)
+              .fill(PlatformColor.color(from: item.displayColor))
+              .frame(width: 16, height: 16)
+              .overlay(
+                RoundedRectangle(cornerRadius: 8)
+                  .stroke(Color.black.opacity(0.08), lineWidth: 1)
+              )
 
-          Text(historySubtitle(for: item))
-            .font(.system(size: 11))
-            .foregroundColor(.secondary)
-            .lineLimit(1)
+            Text(historySubtitle(for: item))
+              .font(.system(size: 11))
+              .foregroundColor(.secondary)
+              .lineLimit(1)
+          }
         }
+        .frame(
+          width: max(0, proxy.size.width - 46 - 10 - 16 - 28),
+          alignment: .leading
+        )
       }
-
-      Spacer(minLength: 8)
-
-      SymbolView(symbolName: "doc.on.doc", fallbackText: "Copy")
-        .foregroundColor(.secondary)
-        .opacity(isHovering ? 1 : 0)
+      .padding(.horizontal, 8)
+      .padding(.vertical, 6)
+      .background(isHovering ? PlatformColor.rowHover : PlatformColor.rowBackground)
+      .cornerRadius(12)
+      .overlay(
+        RoundedRectangle(cornerRadius: 12)
+          .stroke(Color.black.opacity(0.05), lineWidth: 1)
+      )
+      .overlay(alignment: .trailing) {
+        SymbolView(symbolName: "doc.on.doc", fallbackText: "Copy")
+          .foregroundColor(.secondary)
+          .opacity(isHovering ? 1 : 0)
+          .padding(.trailing, 10)
+          .allowsHitTesting(false)
+      }
     }
-    .padding(.horizontal, 8)
-    .padding(.vertical, 6)
-    .background(isHovering ? PlatformColor.rowHover : PlatformColor.rowBackground)
-    .cornerRadius(12)
-    .overlay(
-      RoundedRectangle(cornerRadius: 12)
-        .stroke(Color.black.opacity(0.05), lineWidth: 1)
-    )
+    .frame(minHeight: format == .swiftUI ? 152 : 64)
+    .frame(maxWidth: .infinity, alignment: .leading)
   }
 
   @ViewBuilder
   private var preview: some View {
-    if let previewImage = item.previewImage {
+    if item.isExtendedRange {
+      RoundedRectangle(cornerRadius: 10)
+        .fill(PlatformColor.color(from: item.displayColor))
+        .frame(width: 46, height: 46)
+        .overlay(
+          RoundedRectangle(cornerRadius: 10)
+            .stroke(Color.black.opacity(0.08), lineWidth: 1)
+        )
+    } else if let previewImage = item.previewImage {
       Image(nsImage: previewImage)
         .resizable()
         .aspectRatio(contentMode: .fill)
@@ -110,7 +132,7 @@ struct HistoryRowButton: View {
         )
     } else {
       RoundedRectangle(cornerRadius: 10)
-        .fill(PlatformColor.color(from: item.rgbColor))
+        .fill(PlatformColor.color(from: item.displayColor))
         .frame(width: 46, height: 46)
         .overlay(
           RoundedRectangle(cornerRadius: 10)

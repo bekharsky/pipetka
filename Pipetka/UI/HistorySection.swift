@@ -12,31 +12,36 @@ struct HistorySection: View {
           .foregroundColor(.secondary)
           .frame(maxWidth: .infinity, maxHeight: .infinity)
       } else {
-        ScrollView {
-          VStack(spacing: 4) {
-            ForEach(store.history) { item in
-              HistoryRowButton(
-                item: item,
-                format: store.format,
-                action: {
-                  onCopyText(formatColor(item, format: store.format))
-                }
-              )
-              .contextMenu {
-                ForEach(ColorFormat.allCases, id: \.rawValue) { format in
-                  Button("Copy as \(format.label)") {
-                    onCopyText(formatColor(item, format: format))
+        GeometryReader { proxy in
+          ScrollView {
+            VStack(spacing: 4) {
+              ForEach(store.history) { item in
+                HistoryRowButton(
+                  item: item,
+                  format: store.format,
+                  action: {
+                    onCopyText(formatColor(item, format: store.format))
+                  }
+                )
+                .contextMenu {
+                  ForEach(ColorFormat.allCases, id: \.rawValue) { format in
+                    Button("Copy as \(format.label)") {
+                      onCopyText(formatColor(item, format: format))
+                    }
+                  }
+
+                  Divider()
+
+                  Button("Delete") {
+                    store.removeHistoryItem(id: item.id)
                   }
                 }
-
-                Divider()
-
-                Button("Delete") {
-                  store.removeHistoryItem(id: item.id)
-                }
+                .frame(maxWidth: .infinity, alignment: .leading)
               }
             }
+            .frame(width: proxy.size.width, alignment: .leading)
           }
+          .frame(width: proxy.size.width)
         }
       }
     }

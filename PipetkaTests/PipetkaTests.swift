@@ -83,6 +83,53 @@ class PipetkaTests: XCTestCase {
     XCTAssertEqual(formatHsl(item), "hsl(0 0% 50%)")
   }
 
+  func testExtendedRGBFormatPreservesHDRComponents() {
+    let color = NSColor(
+      colorSpace: .extendedSRGB,
+      components: [1.25, 0.5, 0.25, 1],
+      count: 4
+    )
+    let item = PickedColor(color: color, previewImage: nil, pickedAt: Date(timeIntervalSince1970: 0))
+
+    XCTAssertTrue(item.isExtendedRange)
+    XCTAssertEqual(formatColor(item, format: .extendedRGB), "color(srgb 1.2500 0.5000 0.2500)")
+    XCTAssertEqual(formatColor(item, format: .hex), "HDR (use CSS HDR)")
+    XCTAssertEqual(
+      formatColor(item, format: .swiftUI),
+      "Color(nsColor: NSColor(colorSpace: .extendedSRGB, components: [1.250, 0.500, 0.250, 1.000], count: 4))"
+    )
+  }
+
+  func testHDRDisplayColorToneMapsWithoutChangingExportComponents() {
+    let color = NSColor(
+      colorSpace: .extendedSRGB,
+      components: [0, 35.0312, 25.6562, 1],
+      count: 4
+    )
+    let display = ColorUtilities.displayColor(from: color).usingColorSpace(.deviceRGB)!
+
+    XCTAssertEqual(display.redComponent, 0, accuracy: 0.001)
+    XCTAssertEqual(display.greenComponent, 1, accuracy: 0.001)
+    XCTAssertEqual(display.blueComponent, 25.6562 / 35.0312, accuracy: 0.001)
+    XCTAssertEqual(
+      ColorUtilities.cssExtendedSRGBString(from: color),
+      "color(srgb 0.0000 35.0312 25.6562)"
+    )
+  }
+
+  func testHDRFormatsDoNotPretendOutOfRangeColorIsBlack() {
+    let color = NSColor(
+      colorSpace: .extendedSRGB,
+      components: [0, -40.0938, 0, 1],
+      count: 4
+    )
+    let item = PickedColor(color: color, previewImage: nil, pickedAt: Date(timeIntervalSince1970: 0))
+
+    XCTAssertEqual(formatColor(item, format: .hex), "HDR (use CSS HDR)")
+    XCTAssertEqual(namedColorName(for: item), "HDR color")
+    XCTAssertTrue(historySubtitle(for: item).contains("color(srgb 0.0000 -40.0938 0.0000)"))
+  }
+
   func testLensFrameUsesPreferredPlacementWhenSpaceAllows() {
     let visibleFrame = CGRect(x: 0, y: 0, width: 1440, height: 900)
     let mousePoint = CGPoint(x: 300, y: 600)
