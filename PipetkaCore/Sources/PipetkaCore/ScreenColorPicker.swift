@@ -1,5 +1,7 @@
 // Screen color picker with magnifier lens
 import Cocoa
+import CoreMedia
+import CoreVideo
 import ScreenCaptureKit
 
 public struct PickedColorPayload {
@@ -461,6 +463,82 @@ private struct PixelSample {
   }
 }
 
+enum HDRColorDecoder {
+  static func float(fromHalfBits bits: UInt16) -> Float {
+    let sign = UInt32(bits & 0x8000) << 16
+    let exponent = UInt32((bits >> 10) & 0x1F)
+    let mantissa = UInt32(bits & 0x03FF)
+
+    if exponent == 0 {
+      guard mantissa != 0 else {
+        return Float(bitPattern: sign)
+      }
+
+      var normalizedMantissa = mantissa
+      var normalizedExponent: Int32 = -14
+      while normalizedMantissa & 0x0400 == 0 {
+        normalizedMantissa <<= 1
+        normalizedExponent -= 1
+      }
+      normalizedMantissa &= 0x03FF
+      let floatExponent = UInt32(normalizedExponent + 127)
+      return Float(
+        bitPattern: sign | (floatExponent << 23) | (normalizedMantissa << 13)
+      )
+    }
+
+    if exponent == 0x1F {
+      return Float(bitPattern: sign | 0x7F800000 | (mantissa << 13))
+    }
+
+    let floatExponent = UInt32(Int32(exponent) - 15 + 127)
+    return Float(bitPattern: sign | (floatExponent << 23) | (mantissa << 13))
+  }
+
+  static func component(
+    in bytes: UnsafePointer<UInt8>,
+    at offset: Int
+  ) -> CGFloat? {
+    guard offset >= 0 else {
+      return nil
+    }
+
+    let bits = UInt16(bytes[offset]) | (UInt16(bytes[offset + 1]) << 8)
+    let value = float(fromHalfBits: bits)
+    guard value.isFinite else {
+      return nil
+    }
+    return CGFloat(value)
+  }
+
+  static func makeColor(
+    red: CGFloat,
+    green: CGFloat,
+    blue: CGFloat,
+    alpha: CGFloat,
+    colorSpace: CGColorSpace,
+    isPremultiplied: Bool
+  ) -> NSColor? {
+    guard red.isFinite,
+          green.isFinite,
+          blue.isFinite,
+          alpha.isFinite,
+          alpha > 0,
+          alpha <= 1 else {
+      return nil
+    }
+
+    let divisor = isPremultiplied ? alpha : 1
+    let components = [red / divisor, green / divisor, blue / divisor, alpha]
+    guard components.dropLast().allSatisfy(\.isFinite),
+          let cgColor = CGColor(colorSpace: colorSpace, components: components) else {
+      return nil
+    }
+
+    return NSColor(cgColor: cgColor)?.usingColorSpace(.extendedSRGB)
+  }
+}
+
 private final class PixelSampler {
   private let usesTestSampling: Bool
   private var hdrCapture: HDRPixelCapture?
@@ -508,19 +586,23 @@ private final class PixelSampler {
     }
 
     if #available(macOS 15.0, *), let hdrCapture {
-      let preview = preview ?? Self.legacySample(at: point, screen: screen)
-      hdrCapture.sample(at: point, on: screen) { sample in
-        guard let sample, Self.isUsableHDRColor(sample.color) else {
+      guard let preview = preview ?? Self.legacySample(at: point, screen: screen) else {
+        completion(nil)
+        return
+      }
+
+      hdrCapture.sample(at: point, on: screen) { color in
+        guard let color, Self.isUsableHDRColor(color) else {
           completion(preview)
           return
         }
 
         completion(
           PixelSample(
-            color: sample.color,
-            previewImage: preview?.previewImage ?? sample.previewImage,
-            previewPng: preview?.previewPng ?? sample.previewPng,
-            screenFrame: preview?.screenFrame ?? sample.screenFrame
+            color: color,
+            previewImage: preview.previewImage,
+            previewPng: preview.previewPng,
+            screenFrame: preview.screenFrame
           )
         )
       }
@@ -607,6 +689,56 @@ private final class PixelSampler {
     return bitmap.representation(using: .png, properties: [:])
   }
 
+  fileprivate static func color(from pixelBuffer: CVPixelBuffer) -> NSColor? {
+    guard CVPixelBufferGetPixelFormatType(pixelBuffer) == 0x52476841,
+          CVPixelBufferLockBaseAddress(pixelBuffer, .readOnly) == kCVReturnSuccess else {
+      return nil
+    }
+    defer { CVPixelBufferUnlockBaseAddress(pixelBuffer, .readOnly) }
+
+    guard let baseAddress = CVPixelBufferGetBaseAddress(pixelBuffer) else {
+      return nil
+    }
+
+    let bytesPerRow = CVPixelBufferGetBytesPerRow(pixelBuffer)
+    let width = CVPixelBufferGetWidth(pixelBuffer)
+    let height = CVPixelBufferGetHeight(pixelBuffer)
+    guard width > 0, height > 0, bytesPerRow >= 8 else {
+      return nil
+    }
+
+    let x = width / 2
+    let y = height / 2
+    let pixelOffset = y * bytesPerRow + x * 8
+    guard pixelOffset >= 0,
+          pixelOffset + 8 <= CVPixelBufferGetDataSize(pixelBuffer) else {
+      return nil
+    }
+
+    let bytes = baseAddress.assumingMemoryBound(to: UInt8.self)
+    guard let red = HDRColorDecoder.component(in: bytes, at: pixelOffset),
+          let green = HDRColorDecoder.component(in: bytes, at: pixelOffset + 2),
+          let blue = HDRColorDecoder.component(in: bytes, at: pixelOffset + 4),
+          let alpha = HDRColorDecoder.component(in: bytes, at: pixelOffset + 6) else {
+      return nil
+    }
+
+    let colorSpace = CGColorSpace(name: CGColorSpace.extendedDisplayP3)
+      ?? CGColorSpace(name: CGColorSpace.extendedSRGB)
+    guard let colorSpace else {
+      return nil
+    }
+
+    return HDRColorDecoder.makeColor(
+      red: red,
+      green: green,
+      blue: blue,
+      alpha: alpha,
+      colorSpace: colorSpace,
+      isPremultiplied: true
+    )
+  }
+
   private static func testSample(at point: CGPoint, screen: NSScreen) -> PixelSample? {
     let red = Int(point.x.rounded()) & 0xFF
     let green = Int(point.y.rounded()) & 0xFF
@@ -663,44 +795,6 @@ private final class PixelSampler {
         return nil
       }
 
-      func halfToFloat(_ bits: UInt16) -> Float {
-        let sign = UInt32(bits & 0x8000) << 16
-        let exponent = UInt32((bits >> 10) & 0x1F)
-        let mantissa = UInt32(bits & 0x03FF)
-
-        if exponent == 0 {
-          guard mantissa != 0 else {
-            return Float(bitPattern: sign)
-          }
-
-          var normalizedMantissa = mantissa
-          var normalizedExponent: Int32 = -14
-          while normalizedMantissa & 0x0400 == 0 {
-            normalizedMantissa <<= 1
-            normalizedExponent -= 1
-          }
-          normalizedMantissa &= 0x03FF
-          let floatExponent = UInt32(normalizedExponent + 127)
-          return Float(
-            bitPattern: sign | (floatExponent << 23) | (normalizedMantissa << 13)
-          )
-        }
-
-        if exponent == 0x1F {
-          return Float(bitPattern: sign | 0x7F800000 | (mantissa << 13))
-        }
-
-        let floatExponent = UInt32(Int32(exponent) - 15 + 127)
-        return Float(bitPattern: sign | (floatExponent << 23) | (mantissa << 13))
-      }
-
-      func halfComponent(at offset: Int) -> CGFloat {
-        let low = UInt16(bytes[pixelOffset + offset])
-        let high = UInt16(bytes[pixelOffset + offset + 1]) << 8
-        let value = halfToFloat(low | high)
-        return value.isFinite ? CGFloat(value) : (value.sign == .minus ? 0 : 1)
-      }
-
       let channelOffsets: (red: Int, green: Int, blue: Int, alpha: Int?)
       let isPremultiplied: Bool
       switch image.alphaInfo {
@@ -726,32 +820,38 @@ private final class PixelSampler {
         return nil
       }
 
-      let alpha = channelOffsets.alpha.map(halfComponent) ?? 1
-      guard alpha.isFinite, alpha > 0 else {
+      guard let red = HDRColorDecoder.component(
+              in: bytes,
+              at: pixelOffset + channelOffsets.red
+            ),
+            let green = HDRColorDecoder.component(
+              in: bytes,
+              at: pixelOffset + channelOffsets.green
+            ),
+            let blue = HDRColorDecoder.component(
+              in: bytes,
+              at: pixelOffset + channelOffsets.blue
+            ) else {
         return nil
       }
 
-      let divisor = isPremultiplied ? alpha : 1
-      let components = [
-        halfComponent(at: channelOffsets.red) / divisor,
-        halfComponent(at: channelOffsets.green) / divisor,
-        halfComponent(at: channelOffsets.blue) / divisor,
-        alpha
-      ]
+      let alpha = channelOffsets.alpha.flatMap {
+        HDRColorDecoder.component(in: bytes, at: pixelOffset + $0)
+      } ?? 1
 
       let colorSpace = image.colorSpace
         ?? CGColorSpace(name: CGColorSpace.extendedSRGB)
       guard let colorSpace else {
         return nil
       }
-      guard let cgColor = CGColor(
+      return HDRColorDecoder.makeColor(
+        red: red,
+        green: green,
+        blue: blue,
+        alpha: alpha,
         colorSpace: colorSpace,
-        components: components
-      ) else {
-        return nil
-      }
-
-      return NSColor(cgColor: cgColor)?.usingColorSpace(.extendedSRGB)
+        isPremultiplied: isPremultiplied
+      )
     }
 
     let bitmap = NSBitmapImageRep(cgImage: image)
@@ -771,7 +871,7 @@ private final class HDRPixelCapture {
     let filter: SCContentFilter
     let pixelScale: CGFloat
     let generation: Int
-    let completion: (PixelSample?) -> Void
+    let completion: (NSColor?) -> Void
   }
 
   private var filters: [CGDirectDisplayID: SCContentFilter] = [:]
@@ -837,7 +937,7 @@ private final class HDRPixelCapture {
   func sample(
     at point: CGPoint,
     on screen: NSScreen,
-    completion: @escaping (PixelSample?) -> Void
+    completion: @escaping (NSColor?) -> Void
   ) {
     guard
       let displayNumber = screen.deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")] as? NSNumber,
@@ -888,7 +988,10 @@ private final class HDRPixelCapture {
     activeCaptureID = captureID
     lastCaptureStart = now
 
-    let outputSize: CGFloat = 1
+    // A tiny 1×1 HDR screenshot can contain an invalid half-float pixel on
+    // some macOS/display combinations. Keep the capture small, but sample a
+    // real block and read its center pixel instead.
+    let outputSize: CGFloat = 16
     let logicalCaptureSize = outputSize / request.pixelScale
     let localX = request.point.x - request.screen.frame.minX
     let localY = request.screen.frame.height
@@ -911,15 +1014,20 @@ private final class HDRPixelCapture {
 
     let configuration = SCStreamConfiguration(preset: .captureHDRScreenshotLocalDisplay)
     configuration.sourceRect = sourceRect
-    configuration.width = 1
-    configuration.height = 1
+    configuration.width = Int(outputSize)
+    configuration.height = Int(outputSize)
+    configuration.colorSpaceName = CGColorSpace.extendedDisplayP3
     configuration.showsCursor = false
 
-    SCScreenshotManager.captureImage(
+    SCScreenshotManager.captureSampleBuffer(
       contentFilter: request.filter,
       configuration: configuration
-    ) { [weak self] image, _ in
-      self?.finishCapture(request, image: image, captureID: captureID)
+    ) { [weak self] sampleBuffer, error in
+      let color = error == nil
+        ? sampleBuffer.flatMap { CMSampleBufferGetImageBuffer($0) }
+          .flatMap(PixelSampler.color(from:))
+        : nil
+      self?.finishCapture(request, color: color, captureID: captureID)
     }
 
     DispatchQueue.main.asyncAfter(deadline: .now() + captureTimeout) { [weak self] in
@@ -928,14 +1036,14 @@ private final class HDRPixelCapture {
             self.activeCaptureID == captureID else {
         return
       }
-      self.finishCapture(request, image: nil, captureID: captureID)
+      self.finishCapture(request, color: nil, captureID: captureID)
     }
   }
 
   @available(macOS 15.0, *)
   private func finishCapture(
     _ request: PendingRequest,
-    image: CGImage?,
+    color: NSColor?,
     captureID: Int
   ) {
     DispatchQueue.main.async {
@@ -949,30 +1057,12 @@ private final class HDRPixelCapture {
       defer { self.startNextCapture() }
 
       guard request.generation == self.generation,
-            let image,
-            image.width > 0,
-            image.height > 0,
-            image.bitsPerComponent == 16,
-            image.bitsPerPixel == 64,
-            image.bitmapInfo.contains(.floatComponents),
-            image.bytesPerRow >= image.width * 8,
-            let color = PixelSampler.color(
-              from: image,
-              pixelX: image.width / 2,
-              pixelY: image.height / 2
-            ) else {
+            let color else {
         request.completion(nil)
         return
       }
 
-      request.completion(
-        PixelSample(
-          color: color,
-          previewImage: image,
-          previewPng: PixelSampler.pngData(for: image) ?? Data(),
-          screenFrame: request.screen.visibleFrame
-        )
-      )
+      request.completion(color)
     }
   }
 }

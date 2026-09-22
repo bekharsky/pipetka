@@ -130,6 +130,33 @@ class PipetkaTests: XCTestCase {
     XCTAssertTrue(historySubtitle(for: item).contains("color(srgb 0.0000 -40.0938 0.0000)"))
   }
 
+  func testHDRHalfFloatDecoderPreservesExtendedValuesAndRejectsNaN() {
+    XCTAssertEqual(HDRColorDecoder.float(fromHalfBits: 0x3C00), 1, accuracy: 0.0001)
+    XCTAssertEqual(HDRColorDecoder.float(fromHalfBits: 0x3800), 0.5, accuracy: 0.0001)
+    XCTAssertEqual(HDRColorDecoder.float(fromHalfBits: 0x4000), 2, accuracy: 0.0001)
+    XCTAssertTrue(HDRColorDecoder.float(fromHalfBits: 0x7E00).isNaN)
+
+    var pixel: [UInt8] = [
+      0x00, 0x3C, // 1.0
+      0x00, 0x38, // 0.5
+      0x00, 0x40, // 2.0
+      0x00, 0x3C  // 1.0 alpha
+    ]
+    let components = pixel.withUnsafeMutableBufferPointer { buffer in
+      (0..<4).compactMap { index in
+        HDRColorDecoder.component(in: buffer.baseAddress!, at: index * 2)
+      }
+    }
+    XCTAssertEqual(components, [1, 0.5, 2, 1])
+
+    pixel[2] = 0x00
+    pixel[3] = 0x7E
+    let rejected = pixel.withUnsafeBufferPointer {
+      HDRColorDecoder.component(in: $0.baseAddress!, at: 2)
+    }
+    XCTAssertNil(rejected)
+  }
+
   func testLensFrameUsesPreferredPlacementWhenSpaceAllows() {
     let visibleFrame = CGRect(x: 0, y: 0, width: 1440, height: 900)
     let mousePoint = CGPoint(x: 300, y: 600)
