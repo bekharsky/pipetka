@@ -89,6 +89,28 @@ killall Pipetka 2>/dev/null || true
 open -a /Applications/Pipetka.app
 ```
 
+#### Reusing the local TCC/signing setup in another macOS utility
+
+macOS TCC associates Screen Recording permission with the app's code requirement, not only its bundle identifier. An unsigned/ad-hoc build (`CODE_SIGN_IDENTITY = "-"` or `CODE_SIGNING_ALLOWED=NO`) can therefore look like a new app after every rebuild. A sandboxed local utility can also trigger a separate container-consent loop.
+
+For a locally installed, non-App-Store utility, keep these settings stable:
+
+- `PRODUCT_BUNDLE_IDENTIFIER` stays unchanged between installs.
+- `DEVELOPMENT_TEAM` points to the same team.
+- `CODE_SIGN_STYLE = Automatic` and `CODE_SIGN_IDENTITY = "Apple Development"`.
+- Release uses `ENABLE_APP_SANDBOX = NO` and an empty/non-sandboxed Release entitlements file.
+- Build with signing enabled (`CODE_SIGNING_ALLOWED=YES`, or simply omit the override).
+
+Verify the result before installing:
+
+```bash
+codesign --verify --deep --strict build/native/Release/Pipetka.app
+codesign -dv --verbose=4 build/native/Release/Pipetka.app 2>&1 \
+  | rg 'Identifier|TeamIdentifier|Authority|flags'
+```
+
+This recipe is for local development builds. App Store or Developer ID distribution should use its own distribution identity and the entitlements required by that distribution channel.
+
 While moving the picker, the lens uses the fast SDR sample only. HDR is sampled once on confirmation and preserved in CSS HDR and SwiftUI output. The CSS HDR tab can emit either extended sRGB or extended Display P3; components below 0 or above 1 are valid extended-range/out-of-gamut values. After confirmation, history swatches keep the HDR color when the display supports it, while HEX/RGB/HSL show a tone-mapped SDR approximation marked as `HDR`. If the HDR service does not answer promptly or returns an invalid buffer, the picker safely keeps the SDR sample instead of hanging or storing corrupted components.
 
 Update the App Store marketing version:
