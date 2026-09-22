@@ -1,6 +1,6 @@
 import Cocoa
 
-public struct ExtendedSRGBComponents: Equatable {
+public struct ColorComponents: Equatable {
   public let red: CGFloat
   public let green: CGFloat
   public let blue: CGFloat
@@ -14,18 +14,43 @@ public struct ExtendedSRGBComponents: Equatable {
   }
 }
 
+public typealias ExtendedSRGBComponents = ColorComponents
+
 public enum ColorUtilities {
+  /// The extended Display P3 space used by ScreenCaptureKit's HDR screenshot preset.
+  public static let extendedDisplayP3ColorSpace: NSColorSpace? = {
+    guard let cgColorSpace = CGColorSpace(name: CGColorSpace.extendedDisplayP3) else {
+      return nil
+    }
+    return NSColorSpace(cgColorSpace: cgColorSpace)
+  }()
+
   /// Returns color components in extended sRGB without clipping values outside 0...1.
   public static func extendedSRGBComponents(from color: NSColor) -> ExtendedSRGBComponents? {
-    guard let extendedColor = color.usingColorSpace(.extendedSRGB) else {
+    components(from: color, in: .extendedSRGB)
+  }
+
+  /// Returns color components in extended Display P3 without clipping values outside 0...1.
+  public static func extendedDisplayP3Components(from color: NSColor) -> ColorComponents? {
+    guard let extendedDisplayP3ColorSpace else {
+      return nil
+    }
+    return components(from: color, in: extendedDisplayP3ColorSpace)
+  }
+
+  public static func components(
+    from color: NSColor,
+    in colorSpace: NSColorSpace
+  ) -> ColorComponents? {
+    guard let convertedColor = color.usingColorSpace(colorSpace) else {
       return nil
     }
 
-    return ExtendedSRGBComponents(
-      red: sanitizedComponent(extendedColor.redComponent),
-      green: sanitizedComponent(extendedColor.greenComponent),
-      blue: sanitizedComponent(extendedColor.blueComponent),
-      alpha: sanitizedComponent(extendedColor.alphaComponent)
+    return ColorComponents(
+      red: sanitizedComponent(convertedColor.redComponent),
+      green: sanitizedComponent(convertedColor.greenComponent),
+      blue: sanitizedComponent(convertedColor.blueComponent),
+      alpha: sanitizedComponent(convertedColor.alphaComponent)
     )
   }
 
@@ -72,11 +97,26 @@ public enum ColorUtilities {
     from color: NSColor,
     precision: Int = 4
   ) -> String {
-    guard let components = extendedSRGBComponents(from: color) else {
-      return "color(srgb 0 0 0)"
+    cssColorString(
+      from: color,
+      in: .extendedSRGB,
+      cssName: "srgb",
+      precision: precision
+    )
+  }
+
+  /// Returns an extended CSS Color 4 value in the requested color space.
+  public static func cssColorString(
+    from color: NSColor,
+    in colorSpace: NSColorSpace,
+    cssName: String,
+    precision: Int = 4
+  ) -> String {
+    guard let components = components(from: color, in: colorSpace) else {
+      return "color(\(cssName) 0 0 0)"
     }
 
-    let format = "color(srgb %0.*f %0.*f %0.*f)"
+    let format = "color(\(cssName) %0.*f %0.*f %0.*f)"
     return String(
       format: format,
       precision, Double(components.red),

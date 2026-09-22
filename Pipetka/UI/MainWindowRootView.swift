@@ -10,6 +10,25 @@ struct MainWindowRootView: View {
       FormatPillControl(selection: $store.format, formats: ColorFormat.allCases)
         .frame(height: 34)
 
+      if store.format == .extendedRGB {
+        HStack(spacing: 8) {
+          Text("CSS color space")
+            .font(.system(size: 11, weight: .medium))
+            .foregroundColor(.secondary)
+
+          Picker("CSS color space", selection: $store.cssColorSpace) {
+            ForEach(CSSColorSpace.allCases) { colorSpace in
+              Text(colorSpace.label).tag(colorSpace)
+            }
+          }
+          .labelsHidden()
+          .pickerStyle(.segmented)
+          .controlSize(.small)
+          .frame(maxWidth: .infinity)
+        }
+        .help("Extended HDR components can legitimately be below 0 or above 1.")
+      }
+
       if store.hasVisibleImportedPalettes, let palette = store.currentImportedPalette {
         ImportedPaletteSection(
           store: store,
@@ -24,7 +43,13 @@ struct MainWindowRootView: View {
         historyCount: store.history.count,
         isHistoryEmpty: store.history.isEmpty,
         onCopyHistory: { format in
-          copyText(exportColors(store.history, format: format))
+          copyText(
+            exportColors(
+              store.history,
+              format: format,
+              cssColorSpace: store.cssColorSpace
+            )
+          )
         },
         onClearHistory: {
           store.clearAll()

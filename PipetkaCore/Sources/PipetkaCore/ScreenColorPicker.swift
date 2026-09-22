@@ -395,6 +395,8 @@ final class PickerLensView: NSView {
     context.restoreGState()
 
     let swatchRect = CGRect(x: 12, y: 10, width: 18, height: 18)
+    // Keep the live lens SDR-only. HDR is preserved in the picked result and
+    // rendered by the stable history swatches after confirmation.
     ColorUtilities.displayColor(from: sample.color).setFill()
     NSBezierPath(roundedRect: swatchRect, xRadius: 6, yRadius: 6).fill()
 
@@ -535,7 +537,10 @@ enum HDRColorDecoder {
       return nil
     }
 
-    return NSColor(cgColor: cgColor)?.usingColorSpace(.extendedSRGB)
+    // Keep the source color space intact. HDR UI previews and CSS P3 output
+    // both need access to the original extended Display P3 representation;
+    // callers can still convert this color to extended sRGB when needed.
+    return NSColor(cgColor: cgColor)
   }
 }
 

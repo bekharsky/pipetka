@@ -255,7 +255,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMe
       return
     }
 
-    copyText(exportColors(history, format: format))
+    copyText(
+      exportColors(
+        history,
+        format: format,
+        cssColorSpace: mainWindow?.store.cssColorSpace ?? .sRGB
+      )
+    )
   }
 
   func validateMenuItem(_ menuItem: NSMenuItem) -> Bool {

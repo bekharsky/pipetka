@@ -24,6 +24,40 @@ enum ColorFormat: Int, CaseIterable {
   }
 }
 
+enum CSSColorSpace: String, CaseIterable, Identifiable {
+  case sRGB
+  case displayP3
+
+  var id: String { rawValue }
+
+  var label: String {
+    switch self {
+    case .sRGB:
+      return "sRGB"
+    case .displayP3:
+      return "Display P3"
+    }
+  }
+
+  var cssName: String {
+    switch self {
+    case .sRGB:
+      return "srgb"
+    case .displayP3:
+      return "display-p3"
+    }
+  }
+
+  var nsColorSpace: NSColorSpace {
+    switch self {
+    case .sRGB:
+      return .extendedSRGB
+    case .displayP3:
+      return ColorUtilities.extendedDisplayP3ColorSpace ?? .extendedSRGB
+    }
+  }
+}
+
 struct PickedColor: Identifiable {
   let id = UUID()
   let color: NSColor
@@ -40,6 +74,13 @@ struct PickedColor: Identifiable {
 
   var displayColor: NSColor {
     ColorUtilities.displayColor(from: extendedSRGBColor)
+  }
+
+  /// The color used by the small UI swatches. Keep extended values intact so
+  /// AppKit can render them on an HDR display; the SDR tone-mapped color is
+  /// still used when the source is an ordinary color.
+  var previewColor: NSColor {
+    isExtendedRange ? color : displayColor
   }
 
   var extendedComponents: ExtendedSRGBComponents? {
@@ -61,6 +102,14 @@ struct PickedColor: Identifiable {
 
   var blue: Int {
     ColorUtilities.byteComponent(extendedComponents?.blue ?? 0)
+  }
+
+  var displayHex: String {
+    ColorUtilities.hexString(from: displayColor)
+  }
+
+  var displayRGB: String {
+    "rgb(\(ColorUtilities.byteComponent(displayColor.redComponent)), \(ColorUtilities.byteComponent(displayColor.greenComponent)), \(ColorUtilities.byteComponent(displayColor.blueComponent)))"
   }
 }
 
@@ -97,25 +146,31 @@ enum PaletteExportFormat: Int, CaseIterable {
   }
 }
 
-func formatColor(_ item: PickedColor, format: ColorFormat) -> String {
+func formatColor(
+  _ item: PickedColor,
+  format: ColorFormat,
+  cssColorSpace: CSSColorSpace = .sRGB
+) -> String {
   switch format {
   case .hex:
-    guard !item.isExtendedRange else {
-      return "HDR (use CSS HDR)"
-    }
-    return String(format: "#%02X%02X%02X", item.red, item.green, item.blue)
+    let value = item.isExtendedRange
+      ? item.displayHex
+      : String(format: "#%02X%02X%02X", item.red, item.green, item.blue)
+    return item.isExtendedRange ? "HDR \(value) (use CSS HDR)" : value
   case .rgb:
-    guard !item.isExtendedRange else {
-      return "HDR (use CSS HDR)"
-    }
-    return "rgb(\(item.red), \(item.green), \(item.blue))"
+    let value = item.isExtendedRange
+      ? item.displayRGB
+      : "rgb(\(item.red), \(item.green), \(item.blue))"
+    return item.isExtendedRange ? "HDR \(value) (use CSS HDR)" : value
   case .hsl:
-    guard !item.isExtendedRange else {
-      return "HDR (use CSS HDR)"
-    }
-    return formatHsl(item)
+    let value = formatHsl(item)
+    return item.isExtendedRange ? "HDR \(value) (use CSS HDR)" : value
   case .extendedRGB:
-    return ColorUtilities.cssExtendedSRGBString(from: item.extendedSRGBColor)
+    return ColorUtilities.cssColorString(
+      from: item.color,
+      in: cssColorSpace.nsColorSpace,
+      cssName: cssColorSpace.cssName
+    )
   case .swiftUI:
     let components = item.extendedComponents ?? ExtendedSRGBComponents(red: 0, green: 0, blue: 0)
     if item.isExtendedRange {
@@ -135,8 +190,12 @@ func formatColor(_ item: PickedColor, format: ColorFormat) -> String {
   }
 }
 
-func displayFormatColor(_ item: PickedColor, format: ColorFormat) -> String {
-  let value = formatColor(item, format: format)
+func displayFormatColor(
+  _ item: PickedColor,
+  format: ColorFormat,
+  cssColorSpace: CSSColorSpace = .sRGB
+) -> String {
+  let value = formatColor(item, format: format, cssColorSpace: cssColorSpace)
   guard format == .swiftUI, value.hasPrefix("Color(nsColor: NSColor(") else {
     return value
   }
@@ -171,9 +230,10 @@ func displayFormatColor(_ item: PickedColor, format: ColorFormat) -> String {
 }
 
 func formatHsl(_ item: PickedColor) -> String {
-  let red = Double(ColorUtilities.clampedUnit(item.extendedSRGBColor.redComponent))
-  let green = Double(ColorUtilities.clampedUnit(item.extendedSRGBColor.greenComponent))
-  let blue = Double(ColorUtilities.clampedUnit(item.extendedSRGBColor.blueComponent))
+  let displayColor = item.displayColor
+  let red = Double(ColorUtilities.clampedUnit(displayColor.redComponent))
+  let green = Double(ColorUtilities.clampedUnit(displayColor.greenComponent))
+  let blue = Double(ColorUtilities.clampedUnit(displayColor.blueComponent))
   let maxValue = max(red, max(green, blue))
   let minValue = min(red, min(green, blue))
   let delta = maxValue - minValue
@@ -210,33 +270,44 @@ func namedColorName(for item: PickedColor) -> String {
   return namedColorMatch(for: item).name
 }
 
-func historySubtitle(for item: PickedColor) -> String {
+func historySubtitle(
+  for item: PickedColor,
+  cssColorSpace: CSSColorSpace = .sRGB
+) -> String {
   let value = item.isExtendedRange
-    ? formatColor(item, format: .extendedRGB)
+    ? formatColor(item, format: .extendedRGB, cssColorSpace: cssColorSpace)
     : formatColor(item, format: .hex)
-  return "\(namedColorName(for: item)) • \(value)"
+  return item.isExtendedRange ? "HDR • \(value)" : "\(namedColorName(for: item)) • \(value)"
 }
 
-func recentPickMenuText(for item: PickedColor, format: ColorFormat) -> String {
-  "\(namedColorName(for: item)) - \(formatColor(item, format: format))"
+func recentPickMenuText(
+  for item: PickedColor,
+  format: ColorFormat,
+  cssColorSpace: CSSColorSpace = .sRGB
+) -> String {
+  "\(namedColorName(for: item)) - \(formatColor(item, format: format, cssColorSpace: cssColorSpace))"
 }
 
-func exportColors(_ items: [PickedColor], format: PaletteExportFormat) -> String {
+func exportColors(
+  _ items: [PickedColor],
+  format: PaletteExportFormat,
+  cssColorSpace: CSSColorSpace = .sRGB
+) -> String {
   let entries = makeExportEntries(from: items)
 
   switch format {
   case .cssVariables:
     let body = entries.map { entry in
-      "  --\(entry.slug): \(cssExportValue(for: entry.item)); /* \(entry.name) */"
+      "  --\(entry.slug): \(cssExportValue(for: entry.item, cssColorSpace: cssColorSpace)); /* \(entry.name) */"
     }.joined(separator: "\n")
     return ":root {\n\(body)\n}"
   case .scssVariables:
     return entries.map { entry in
-      "$\(entry.slug): \(cssExportValue(for: entry.item)); // \(entry.name)"
+      "$\(entry.slug): \(cssExportValue(for: entry.item, cssColorSpace: cssColorSpace)); // \(entry.name)"
     }.joined(separator: "\n")
   case .tailwindColors:
     let body = entries.map { entry in
-      "      '\(entry.slug)': '\(cssExportValue(for: entry.item))', // \(entry.name)"
+      "      '\(entry.slug)': '\(cssExportValue(for: entry.item, cssColorSpace: cssColorSpace))', // \(entry.name)"
     }.joined(separator: "\n")
     return """
 module.exports = {
@@ -254,10 +325,10 @@ module.exports = {
       """
   "\(entry.slug)": {
     "name": "\(escapeJSONString(entry.name))",
-    "hex": "\(formatColor(entry.item, format: .hex))",
-    "rgb": "\(formatColor(entry.item, format: .rgb))",
-    "hsl": "\(formatColor(entry.item, format: .hsl))",
-    "extendedRGB": "\(formatColor(entry.item, format: .extendedRGB))",
+    "hex": "\(formatColor(entry.item, format: .hex, cssColorSpace: cssColorSpace))",
+    "rgb": "\(formatColor(entry.item, format: .rgb, cssColorSpace: cssColorSpace))",
+    "hsl": "\(formatColor(entry.item, format: .hsl, cssColorSpace: cssColorSpace))",
+    "extendedRGB": "\(formatColor(entry.item, format: .extendedRGB, cssColorSpace: cssColorSpace))",
     "swiftUI": "\(formatColor(entry.item, format: .swiftUI))"
   }
 """
@@ -266,9 +337,12 @@ module.exports = {
   }
 }
 
-private func cssExportValue(for item: PickedColor) -> String {
+private func cssExportValue(
+  for item: PickedColor,
+  cssColorSpace: CSSColorSpace
+) -> String {
   item.isExtendedRange
-    ? formatColor(item, format: .extendedRGB)
+    ? formatColor(item, format: .extendedRGB, cssColorSpace: cssColorSpace)
     : formatColor(item, format: .hex)
 }
 

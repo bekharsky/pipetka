@@ -7,7 +7,7 @@ A native macOS color picker app with AI assistant integration.
 ### Desktop App
 
 - **Screen Color Picker** - Magnified lens overlay to sample any pixel on screen with precise crosshair targeting
-- **Multiple Output Formats** - Copy colors as HEX, RGB, HSL, CSS HDR `color(srgb …)`, or SwiftUI Color syntax
+- **Multiple Output Formats** - Copy colors as HEX, RGB, HSL, CSS HDR `color(srgb …)` / `color(display-p3 …)`, or SwiftUI Color syntax
 - **HDR Sampling** - On macOS 15+ and Apple Silicon, preserves extended-range screen components instead of clipping them to 8-bit SDR
 - **Color Names** - Automatically identifies nearest named color for every pick (1,500+ color database)
 - **Pick History** - Persistent history with quick copy, export, and visual swatches
@@ -89,7 +89,7 @@ killall Pipetka 2>/dev/null || true
 open -a /Applications/Pipetka.app
 ```
 
-While moving the picker, the lens uses the fast SDR sample only. HDR is sampled once on confirmation and preserved in CSS HDR and SwiftUI output. UI swatches and previews use a tone-mapped SDR representation; if the HDR service does not answer promptly or returns an invalid buffer, the picker safely keeps the SDR sample instead of hanging or storing corrupted components.
+While moving the picker, the lens uses the fast SDR sample only. HDR is sampled once on confirmation and preserved in CSS HDR and SwiftUI output. The CSS HDR tab can emit either extended sRGB or extended Display P3; components below 0 or above 1 are valid extended-range/out-of-gamut values. After confirmation, history swatches keep the HDR color when the display supports it, while HEX/RGB/HSL show a tone-mapped SDR approximation marked as `HDR`. If the HDR service does not answer promptly or returns an invalid buffer, the picker safely keeps the SDR sample instead of hanging or storing corrupted components.
 
 Update the App Store marketing version:
 

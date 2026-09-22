@@ -10,6 +10,9 @@ final class PipetkaStore: ObservableObject {
   @Published var format: ColorFormat = .hex {
     didSet { publishRecentPickItems() }
   }
+  @Published var cssColorSpace: CSSColorSpace = .sRGB {
+    didSet { publishRecentPickItems() }
+  }
   @Published var alwaysOnTop = false
 
   var onPickRequested: (() -> Void)?
@@ -132,8 +135,12 @@ final class PipetkaStore: ObservableObject {
   func currentRecentPickItems() -> [RecentPickMenuItem] {
     Array(history.prefix(10)).map {
       RecentPickMenuItem(
-        text: recentPickMenuText(for: $0, format: format),
-        color: $0.displayColor
+        text: recentPickMenuText(
+          for: $0,
+          format: format,
+          cssColorSpace: cssColorSpace
+        ),
+        color: $0.previewColor
       )
     }
   }

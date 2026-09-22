@@ -12,37 +12,48 @@ struct HistorySection: View {
           .foregroundColor(.secondary)
           .frame(maxWidth: .infinity, maxHeight: .infinity)
       } else {
-        GeometryReader { proxy in
-          ScrollView {
-            VStack(spacing: 4) {
-              ForEach(store.history) { item in
-                HistoryRowButton(
-                  item: item,
-                  format: store.format,
-                  action: {
-                    onCopyText(formatColor(item, format: store.format))
-                  }
-                )
-                .contextMenu {
-                  ForEach(ColorFormat.allCases, id: \.rawValue) { format in
-                    Button("Copy as \(format.label)") {
-                      onCopyText(formatColor(item, format: format))
-                    }
-                  }
-
-                  Divider()
-
-                  Button("Delete") {
-                    store.removeHistoryItem(id: item.id)
+        ScrollView {
+          LazyVStack(spacing: 4) {
+            ForEach(store.history) { item in
+              HistoryRowButton(
+                item: item,
+                format: store.format,
+                cssColorSpace: store.cssColorSpace,
+                action: {
+                  onCopyText(
+                    formatColor(
+                      item,
+                      format: store.format,
+                      cssColorSpace: store.cssColorSpace
+                    )
+                  )
+                }
+              )
+              .contextMenu {
+                ForEach(ColorFormat.allCases, id: \.rawValue) { format in
+                  Button("Copy as \(format.label)") {
+                    onCopyText(
+                      formatColor(
+                        item,
+                        format: format,
+                        cssColorSpace: store.cssColorSpace
+                      )
+                    )
                   }
                 }
-                .frame(maxWidth: .infinity, alignment: .leading)
+
+                Divider()
+
+                Button("Delete") {
+                  store.removeHistoryItem(id: item.id)
+                }
               }
+              .frame(maxWidth: .infinity, alignment: .leading)
             }
-            .frame(width: proxy.size.width, alignment: .leading)
           }
-          .frame(width: proxy.size.width)
+          .frame(maxWidth: .infinity, alignment: .leading)
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
       }
     }
     .frame(minHeight: 140, maxHeight: .infinity)

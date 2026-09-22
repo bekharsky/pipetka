@@ -93,10 +93,34 @@ class PipetkaTests: XCTestCase {
 
     XCTAssertTrue(item.isExtendedRange)
     XCTAssertEqual(formatColor(item, format: .extendedRGB), "color(srgb 1.2500 0.5000 0.2500)")
-    XCTAssertEqual(formatColor(item, format: .hex), "HDR (use CSS HDR)")
+    XCTAssertEqual(formatColor(item, format: .hex), "HDR #FF6633 (use CSS HDR)")
+    XCTAssertEqual(formatColor(item, format: .rgb), "HDR rgb(255, 102, 51) (use CSS HDR)")
+    XCTAssertTrue(formatColor(item, format: .hsl).hasPrefix("HDR hsl("))
     XCTAssertEqual(
       formatColor(item, format: .swiftUI),
       "Color(nsColor: NSColor(colorSpace: .extendedSRGB, components: [1.250, 0.500, 0.250, 1.000], count: 4))"
+    )
+    XCTAssertTrue(displayFormatColor(item, format: .swiftUI).contains("\n"))
+  }
+
+  func testCSSHDRCanUseDisplayP3() {
+    guard
+      let cgColorSpace = CGColorSpace(name: CGColorSpace.extendedDisplayP3),
+      let cgColor = CGColor(
+        colorSpace: cgColorSpace,
+        components: [1.25, 0.5, 0.25, 1]
+      ),
+      let color = NSColor(cgColor: cgColor)
+    else {
+      XCTFail("Extended Display P3 is unavailable")
+      return
+    }
+
+    let item = PickedColor(color: color, previewImage: nil, pickedAt: Date(timeIntervalSince1970: 0))
+
+    XCTAssertEqual(
+      formatColor(item, format: .extendedRGB, cssColorSpace: .displayP3),
+      "color(display-p3 1.2500 0.5000 0.2500)"
     )
   }
 
@@ -125,7 +149,7 @@ class PipetkaTests: XCTestCase {
     )
     let item = PickedColor(color: color, previewImage: nil, pickedAt: Date(timeIntervalSince1970: 0))
 
-    XCTAssertEqual(formatColor(item, format: .hex), "HDR (use CSS HDR)")
+    XCTAssertEqual(formatColor(item, format: .hex), "HDR #000000 (use CSS HDR)")
     XCTAssertEqual(namedColorName(for: item), "HDR color")
     XCTAssertTrue(historySubtitle(for: item).contains("color(srgb 0.0000 -40.0938 0.0000)"))
   }
