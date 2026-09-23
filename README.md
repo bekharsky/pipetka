@@ -135,7 +135,7 @@ The output of the last command must contain `com.apple.security.app-sandbox` wit
 
 ### GitHub Release build
 
-GitHub Releases use the ordinary non-sandboxed `Release` configuration, signed with `Developer ID Application` and notarized before publishing. This keeps the downloaded utility separate from the App Store sandbox while still giving macOS a stable, verifiable code signature. The workflow runs for `v*` tags or can be started manually with a version.
+GitHub Releases use the ordinary non-sandboxed `Release` configuration, with Hardened Runtime enabled, signed with `Developer ID Application`, and notarized before publishing. This keeps the downloaded utility separate from the App Store sandbox while still giving macOS a stable, verifiable code signature. The workflow runs for `v*` tags or can be started manually with a version.
 
 Add these repository Actions secrets before using `.github/workflows/release.yml`:
 

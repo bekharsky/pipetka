@@ -152,19 +152,45 @@ jobs:
 
           notary_key_path="$RUNNER_TEMP/AuthKey_${APPLE_NOTARY_KEY_ID}.p8"
           printf '%s' "$APPLE_NOTARY_PRIVATE_KEY_BASE64" | base64 -D > "$notary_key_path"
-          xcrun notarytool submit "$notarization_zip" \
+          submission_json="$(xcrun notarytool submit "$notarization_zip" \
             --key "$notary_key_path" \
             --key-id "$APPLE_NOTARY_KEY_ID" \
             --issuer "$APPLE_NOTARY_ISSUER_ID" \
-            --wait
+            --wait \
+            --output-format json)"
+          printf '%s\n' "$submission_json"
+
+          submission_id="$(printf '%s\n' "$submission_json" | jq -r '.id // empty')"
+          submission_status="$(printf '%s\n' "$submission_json" | jq -r '.status // empty')"
+          if [[ "$submission_status" != "Accepted" ]]; then
+            echo "::error::Apple notarization returned '${submission_status:-unknown}'"
+            if [[ -n "$submission_id" ]]; then
+              xcrun notarytool log "$submission_id" \
+                --key "$notary_key_path" \
+                --key-id "$APPLE_NOTARY_KEY_ID" \
+                --issuer "$APPLE_NOTARY_ISSUER_ID" || true
+            fi
+            exit 1
+          fi
 
       - name: Staple and package the notarized app
         shell: bash
         run: |
           set -euo pipefail
 
-          xcrun stapler staple "$APP_PATH"
-          xcrun stapler validate "$APP_PATH"
+          stapled=false
+          for attempt in 1 2 3 4 5 6; do
+            if xcrun stapler staple "$APP_PATH" && xcrun stapler validate "$APP_PATH"; then
+              stapled=true
+              break
+            fi
+            echo "Stapling is not visible yet; retrying in 10 seconds (attempt $attempt/6)"
+            sleep 10
+          done
+          if [[ "$stapled" != true ]]; then
+            echo "::error::Apple accepted the submission, but the notarization ticket could not be stapled"
+            exit 1
+          fi
           spctl --assess --type execute --verbose=4 "$APP_PATH"
           ditto -c -k --sequesterRsrc --keepParent \
             "$APP_PATH" \
