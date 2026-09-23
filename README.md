@@ -147,13 +147,21 @@ Add these repository Actions secrets before using `.github/workflows/release.yml
 
 The workflow deliberately fails when these credentials are missing; it must not silently fall back to an unsigned/ad-hoc release. The App Store build does not reuse this workflow: Xcode Cloud archives the shared `Pipetka` scheme with its `AppStore` Archive configuration.
 
-The distribution branch is `release`. The normal release flow is:
+The GitHub Release workflow is intentionally independent from the App Store build: it runs only for `v*` tags (or a manually started workflow). The normal GitHub release flow is:
 
 1. On `main`, bump `MARKETING_VERSION` with `./bump-version.sh --patch` (or `--minor`/`--major`), commit it, and push `main`.
-2. Merge `main` into `release` and push `release`.
-3. That push starts both the GitHub Release workflow and the Xcode Cloud workflow configured for the `release` branch. The GitHub workflow reads the marketing version from `Pipetka/Configs/AppInfo.xcconfig`; a `v*` tag or a manual workflow run remains available as an alternative.
+2. Create and push a matching tag from `main`:
 
-If the version already has a GitHub Release, the workflow still validates and notarizes the branch build but leaves the existing release asset untouched. Bump the marketing version before the next distribution merge when a new GitHub release is required.
+   ```bash
+   git switch main
+   git pull --ff-only origin main
+   git tag -a v1.0.13 -m "Release 1.0.13"
+   git push origin v1.0.13
+   ```
+
+3. GitHub Actions builds, notarizes, and publishes the GitHub Release for that tag.
+
+Xcode Cloud should use a separate workflow whose start condition is a branch change on `release`. Disable its start conditions for `main` and pull requests if App Store builds should not run during ordinary development. To make an App Store build, merge the desired `main` state into `release` and push `release`; that push starts Xcode Cloud only and does not start the GitHub Release workflow.
 
 While moving the picker, the lens uses the fast SDR sample only. HDR is sampled once on confirmation and preserved in CSS profile and SwiftUI output. The CSS profile selector can emit extended sRGB, Display P3, Rec. 2020, or Rec. 2100 PQ/HLG/Linear. Components below 0 or above 1 are valid extended-range/out-of-gamut values in the linear and wide-gamut forms; PQ and HLG encode into their nominal display range. After confirmation, history swatches keep the HDR color when the display supports it, while HEX/RGB/HSL show a tone-mapped SDR approximation marked as `HDR`. If the HDR service does not answer promptly or returns an invalid buffer, the picker safely keeps the SDR sample instead of hanging or storing corrupted components.
 

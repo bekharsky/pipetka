@@ -2,15 +2,13 @@ name: GitHub Release
 
 on:
   push:
-    branches:
-      - release
     tags:
       - "v*"
   workflow_dispatch:
     inputs:
       version:
         description: "Marketing version, for example 1.0.12"
-        required: false
+        required: true
         type: string
 
 permissions:
@@ -73,13 +71,8 @@ jobs:
 
           if [[ -n "$REQUESTED_VERSION" ]]; then
             version="${REQUESTED_VERSION#v}"
-          elif [[ "$GITHUB_REF_TYPE" == "tag" ]]; then
-            version="${GITHUB_REF_NAME#v}"
           else
-            version="$(sed -n -E \
-              's/^[[:space:]]*MARKETING_VERSION[[:space:]]*=[[:space:]]*([^[:space:]]+).*$/\1/p' \
-              Pipetka/Configs/AppInfo.xcconfig \
-              | head -n 1)"
+            version="${GITHUB_REF_NAME#v}"
           fi
 
           if [[ ! "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+([.-][0-9A-Za-z.-]+)?$ ]]; then
