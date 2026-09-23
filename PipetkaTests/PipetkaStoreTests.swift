@@ -4,6 +4,13 @@ import XCTest
 
 final class PipetkaStoreTests: XCTestCase {
 
+  func testDefaultOutputIsCSSHDRWithOKLCH() {
+    let store = PipetkaStore()
+
+    XCTAssertEqual(store.format, .extendedRGB)
+    XCTAssertEqual(store.cssColorSpace, .oklch)
+  }
+
   private func makeColor(red: Int, green: Int, blue: Int) -> NSColor {
     NSColor(
       srgbRed: CGFloat(red) / 255,

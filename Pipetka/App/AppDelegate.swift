@@ -81,7 +81,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMe
     }
     DispatchQueue.main.async { [weak self] in
       self?.showMainWindow()
-      self?.requestRequiredPermissionsOnLaunch()
     }
   }
 
@@ -256,7 +255,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMe
       return
     }
 
-    copyText(exportColors(history, format: format))
+    copyText(
+      exportColors(
+        history,
+        format: format,
+        cssColorSpace: mainWindow?.store.cssColorSpace ?? .sRGB
+      )
+    )
   }
 
   func validateMenuItem(_ menuItem: NSMenuItem) -> Bool {
@@ -273,9 +278,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMe
 
   private func handlePickedColor(_ payload: PickedColorPayload) {
     mainWindow?.store.addPick(
-      red: payload.red,
-      green: payload.green,
-      blue: payload.blue,
+      color: payload.color,
       previewPng: payload.previewPng
     )
   }
@@ -487,6 +490,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMe
     applyMainWindowLevel()
     NSRunningApplication.current.activate(options: [.activateIgnoringOtherApps])
     window.makeKeyAndOrderFront(nil)
+    window.clearInitialFocus()
   }
 
   private func showMainWindowWithoutActivating() {
@@ -496,6 +500,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMe
 
     applyMainWindowLevel()
     window.orderFront(nil)
+    window.clearInitialFocus()
   }
 
   private func hideMainWindow() {
@@ -512,48 +517,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMe
 
   private func refreshStatusBar() {
     statusBarController.install()
-  }
-
-  private func requestRequiredPermissionsOnLaunch() {
-    guard !isUITesting else {
-      return
-    }
-
-    let needsScreenCaptureAccess: Bool
-    if #available(macOS 10.15, *) {
-      needsScreenCaptureAccess = !CGPreflightScreenCaptureAccess()
-    } else {
-      needsScreenCaptureAccess = false
-    }
-    guard needsScreenCaptureAccess else {
-      return
-    }
-
-    showRequiredPermissionsExplanationAlert()
-    requestScreenCaptureAccessOnLaunch()
-  }
-
-  private func showRequiredPermissionsExplanationAlert() {
-    let alert = NSAlert()
-    alert.messageText = "Pipetka needs macOS permissions"
-    alert.informativeText = "Screen Recording lets Pipetka sample pixels under your cursor."
-    alert.alertStyle = .informational
-    alert.addButton(withTitle: "Continue")
-    alert.runModal()
-  }
-
-  private func requestScreenCaptureAccessOnLaunch() {
-    guard #available(macOS 10.15, *) else {
-      return
-    }
-
-    guard !CGPreflightScreenCaptureAccess() else {
-      return
-    }
-
-    hasRequestedScreenCaptureAccessThisLaunch = true
-    NSApp.activate(ignoringOtherApps: true)
-    _ = CGRequestScreenCaptureAccess()
   }
 
   private func configureToolsMenu() {

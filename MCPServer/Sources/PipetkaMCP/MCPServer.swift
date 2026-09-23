@@ -52,7 +52,7 @@ final class MCPServer {
         "tools": [
           [
             "name": "pick_color",
-            "description": "Opens an interactive magnifier overlay on screen. The user clicks any pixel to sample its color. Returns hex, rgb, and hsl values of the picked color. IMPORTANT: Always display the full color result to the user exactly as returned.",
+            "description": "Opens an interactive magnifier overlay on screen. The user clicks any pixel to sample its color. Returns SDR hex/rgb/hsl values plus extendedRGB in CSS color(srgb ...) syntax for HDR colors. IMPORTANT: Always display the full color result to the user exactly as returned.",
             "inputSchema": ["type": "object", "properties": [String: Any]()]
           ] as [String: Any],
           [
@@ -126,14 +126,9 @@ final class MCPServer {
     let hsl = ColorUtilities.rgbToHsl(r: r, g: g, b: b)
 
     // Create color bucket for swatch generation
-    let nsColor = NSColor(
-      calibratedRed: CGFloat(r) / 255.0,
-      green: CGFloat(g) / 255.0,
-      blue: CGFloat(b) / 255.0,
-      alpha: 1.0
-    )
-    let bucket = PaletteColorBucket(color: nsColor, pixelCount: 1)
+    let bucket = PaletteColorBucket(color: payload.color, pixelCount: 1)
     let swatch = "![\(payload.hex)](\(swatchDataURI(for: bucket)))"
+    let extendedRGB = ColorUtilities.cssExtendedSRGBString(from: payload.color)
     
     // Get color name
     let match = NamedColorLookup.nearestMatch(red: r, green: g, blue: b)
@@ -142,7 +137,8 @@ final class MCPServer {
       "\(swatch) \(match.name)",
       "hex: \(payload.hex)",
       "rgb: rgb(\(r), \(g), \(b))",
-      "hsl: hsl(\(hsl.h), \(hsl.s)%, \(hsl.l)%)"
+      "hsl: hsl(\(hsl.h), \(hsl.s)%, \(hsl.l)%)",
+      "extendedRGB: \(extendedRGB)"
     ]
     
     var content: [[String: Any]] = []

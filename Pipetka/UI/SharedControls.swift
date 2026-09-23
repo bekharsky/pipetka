@@ -200,7 +200,6 @@ enum PlatformColor {
   static let chromeBackground = color(from: .windowBackgroundColor)
   static let cardBackground = color(from: .controlBackgroundColor)
   static let rowBackground = color(from: .controlBackgroundColor)
-  static let selectedSegmentBackground = color(from: .textBackgroundColor)
   static let previewPlaceholder = color(from: .underPageBackgroundColor)
   static let rowHover = Color.accentColor.opacity(0.12)
   static let hairlineBorder = color(from: .separatorColor)

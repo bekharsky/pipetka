@@ -16,6 +16,8 @@ final class MainWindow: NSWindow, NSToolbarDelegate {
     static let onTop = NSToolbarItem.Identifier("com.kharion.pipetka.toolbar.on-top")
     static let importItem = NSToolbarItem.Identifier("com.kharion.pipetka.toolbar.import")
     static let pick = NSToolbarItem.Identifier("com.kharion.pipetka.toolbar.pick")
+    static let pickGroup = NSToolbarItem.Identifier("com.kharion.pipetka.toolbar.pick-group")
+    static let clearHistory = NSToolbarItem.Identifier("com.kharion.pipetka.toolbar.clear-history")
     static let spacer = NSToolbarItem.Identifier.flexibleSpace
   }
 
@@ -79,6 +81,13 @@ final class MainWindow: NSWindow, NSToolbarDelegate {
     countLabel?.stringValue = count == 1 ? "1 pick" : "\(count) picks"
   }
 
+  func clearInitialFocus() {
+    DispatchQueue.main.async { [weak self] in
+      guard let self, self.isVisible else { return }
+      self.makeFirstResponder(nil)
+    }
+  }
+
   @objc
   private func handleToolbarToggleOnTop(_ sender: Any?) {
     store.requestAlwaysOnTopToggle()
@@ -92,6 +101,11 @@ final class MainWindow: NSWindow, NSToolbarDelegate {
   @objc
   private func handleToolbarPick(_ sender: Any?) {
     store.requestPick()
+  }
+
+  @objc
+  private func handleToolbarClearHistory(_ sender: Any?) {
+    store.clearAll()
   }
 
   private func toolbarImage(systemName: String, tintColor: NSColor? = nil) -> NSImage? {
@@ -200,6 +214,8 @@ final class MainWindow: NSWindow, NSToolbarDelegate {
         pinToolbarItem = item
       }
 
+      syncToolbarState()
+
       return item
     }
 
@@ -269,11 +285,23 @@ final class MainWindow: NSWindow, NSToolbarDelegate {
   }
 
   func toolbarAllowedItemIdentifiers(_ toolbar: NSToolbar) -> [NSToolbarItem.Identifier] {
-    [ToolbarIdentifier.spacer, ToolbarIdentifier.onTop, ToolbarIdentifier.importItem, ToolbarIdentifier.pick]
+    [
+      ToolbarIdentifier.spacer,
+      ToolbarIdentifier.onTop,
+      ToolbarIdentifier.importItem,
+      ToolbarIdentifier.pickGroup,
+      ToolbarIdentifier.clearHistory
+    ]
   }
 
   func toolbarDefaultItemIdentifiers(_ toolbar: NSToolbar) -> [NSToolbarItem.Identifier] {
-    [ToolbarIdentifier.spacer, ToolbarIdentifier.onTop, ToolbarIdentifier.importItem, ToolbarIdentifier.pick]
+    [
+      ToolbarIdentifier.spacer,
+      ToolbarIdentifier.onTop,
+      ToolbarIdentifier.importItem,
+      ToolbarIdentifier.clearHistory,
+      ToolbarIdentifier.pickGroup
+    ]
   }
 
   func toolbar(
@@ -282,6 +310,8 @@ final class MainWindow: NSWindow, NSToolbarDelegate {
     willBeInsertedIntoToolbar flag: Bool
   ) -> NSToolbarItem? {
     switch itemIdentifier {
+    case ToolbarIdentifier.pickGroup:
+      return makePickToolbarGroup()
     case ToolbarIdentifier.onTop:
       return makeToolbarItem(
         identifier: itemIdentifier,
@@ -296,16 +326,32 @@ final class MainWindow: NSWindow, NSToolbarDelegate {
         symbolName: "folder.badge.plus",
         action: #selector(handleToolbarImport(_:))
       )
-    case ToolbarIdentifier.pick:
+    case ToolbarIdentifier.clearHistory:
       return makeToolbarItem(
         identifier: itemIdentifier,
-        label: "Pick",
-        symbolName: "eyedropper.full",
-        action: #selector(handleToolbarPick(_:)),
-        tintColor: .controlAccentColor
+        label: "Clear History",
+        symbolName: "eraser",
+        action: #selector(handleToolbarClearHistory(_:))
       )
     default:
       return nil
     }
+  }
+
+  private func makePickToolbarGroup() -> NSToolbarItemGroup {
+    let pickItem = makeToolbarItem(
+      identifier: ToolbarIdentifier.pick,
+      label: "Pick",
+      symbolName: "eyedropper.full",
+      action: #selector(handleToolbarPick(_:)),
+      tintColor: .controlAccentColor
+    )
+    let group = NSToolbarItemGroup(itemIdentifier: ToolbarIdentifier.pickGroup)
+    group.subitems = [pickItem]
+    group.label = "Pick"
+    group.paletteLabel = "Pick"
+    group.toolTip = "Pick"
+    group.visibilityPriority = .high
+    return group
   }
 }
