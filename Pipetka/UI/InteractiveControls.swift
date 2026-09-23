@@ -286,6 +286,7 @@ struct FormatPicker: View {
 
   var body: some View {
     Group {
+#if compiler(>=6.4)
       if #available(macOS 27.0, *) {
         Picker("Output", selection: tabSelection) {
           pickerOptions
@@ -297,6 +298,12 @@ struct FormatPicker: View {
         }
         .pickerStyle(.segmented)
       }
+#else
+      Picker("Output", selection: tabSelection) {
+        pickerOptions
+      }
+      .pickerStyle(.segmented)
+#endif
     }
     .labelsHidden()
     .formatPickerControlSize()
