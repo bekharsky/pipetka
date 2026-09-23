@@ -279,199 +279,99 @@ struct PaletteSwatchChip: View {
   }
 }
 
-struct FormatPillControl: View {
+struct FormatPicker: View {
   @Binding var selection: ColorFormat
+  @Binding var cssColorSpace: CSSColorSpace
   let formats: [ColorFormat]
 
-  private let controlHeight: CGFloat = 34
-  private let inset: CGFloat = 4
-  private let spacing: CGFloat = 4
-  private let activeHeight: CGFloat = 26
-  private let activeCornerRadius: CGFloat = 9
-  private let trackCornerRadius: CGFloat = 11
+  var body: some View {
+    Group {
+      if #available(macOS 27.0, *) {
+        Picker("Output", selection: tabSelection) {
+          pickerOptions
+        }
+        .pickerStyle(.tabs)
+      } else {
+        Picker("Output", selection: tabSelection) {
+          pickerOptions
+        }
+        .pickerStyle(.segmented)
+      }
+    }
+    .labelsHidden()
+    .formatPickerControlSize()
+    .frame(maxWidth: .infinity, minHeight: 40)
+    .accessibilityLabel("Color output")
+  }
+
+  private var tabSelection: Binding<ColorFormat> {
+    Binding(
+      get: { selection == .rgb ? .hex : selection },
+      set: { selection = $0 }
+    )
+  }
+
+  @ViewBuilder
+  private var pickerOptions: some View {
+    ForEach(formats, id: \.rawValue) { format in
+      Text(format.label(for: cssColorSpace)).tag(format)
+    }
+  }
+}
+
+struct RGBFormatPicker: View {
+  @Binding var selection: ColorFormat
 
   var body: some View {
-    GeometryReader { proxy in
-      let activeWidth = segmentWidth(totalWidth: proxy.size.width)
-
-      ZStack(alignment: .topLeading) {
-        RoundedRectangle(cornerRadius: trackCornerRadius)
-          .fill(Color.black.opacity(0.075))
-
-        if let selectedIndex = formats.firstIndex(of: selection) {
-          RoundedRectangle(cornerRadius: activeCornerRadius)
-            .fill(PlatformColor.selectedSegmentBackground)
-            .frame(width: activeWidth, height: activeHeight)
-            .overlay(
-              RoundedRectangle(cornerRadius: activeCornerRadius)
-                .stroke(Color.black.opacity(0.08), lineWidth: 1)
-            )
-            .offset(x: activeOffset(for: selectedIndex, width: activeWidth), y: inset)
-        }
-
-        HStack(spacing: spacing) {
-          ForEach(formats, id: \.rawValue) { format in
-            FormatSegmentButton(
-              label: format.label,
-              isSelected: selection == format,
-              onActivate: {
-                select(format)
-              },
-              onMove: { offset in
-                selectAdjacentFormat(to: format, offset: offset)
-              }
-            )
-            .frame(maxWidth: .infinity)
-            .frame(height: activeHeight)
-          }
-        }
-        .padding(inset)
-      }
-      .overlay(
-        RoundedRectangle(cornerRadius: trackCornerRadius)
-          .stroke(Color.black.opacity(0.06), lineWidth: 1)
-      )
-      .accessibilityElement(children: .contain)
-      .accessibilityLabel("Color format")
+    Picker(selection: $selection) {
+      Text("HEX").tag(ColorFormat.hex)
+      Text("RGB").tag(ColorFormat.rgb)
+    } label: {
+      Text(selection == .rgb ? "RGB" : "HEX")
     }
-    .frame(height: controlHeight)
+    .pickerStyle(.menu)
+    .labelsHidden()
+    .controlSize(.small)
+    .fixedSize()
+    .help("Choose HEX or RGB output")
+    .accessibilityLabel("HEX or RGB output")
   }
+}
 
-  private func segmentWidth(totalWidth: CGFloat) -> CGFloat {
-    let availableWidth = totalWidth - (inset * 2) - (spacing * CGFloat(max(formats.count - 1, 0)))
-    return max(0, availableWidth / CGFloat(max(formats.count, 1)))
-  }
-
-  private func activeOffset(for index: Int, width: CGFloat) -> CGFloat {
-    inset + CGFloat(index) * (width + spacing)
-  }
-
-  private func selectAdjacentFormat(to format: ColorFormat, offset: Int) {
-    guard let index = formats.firstIndex(of: format) else {
-      return
-    }
-
-    let nextIndex = min(max(index + offset, 0), formats.count - 1)
-    guard nextIndex != index else {
-      return
-    }
-
-    select(formats[nextIndex])
-  }
-
-  private func select(_ format: ColorFormat) {
-    withAnimation(.spring(response: 0.22, dampingFraction: 0.88)) {
-      selection = format
+private extension View {
+  @ViewBuilder
+  func formatPickerControlSize() -> some View {
+    if #available(macOS 14.0, *) {
+      controlSize(.extraLarge)
+    } else {
+      controlSize(.large)
     }
   }
 }
 
-private struct FormatSegmentButton: NSViewRepresentable {
-  let label: String
-  let isSelected: Bool
-  let onActivate: () -> Void
-  let onMove: (Int) -> Void
+struct CSSProfilePicker: View {
+  @Binding var selection: CSSColorSpace
 
-  func makeCoordinator() -> Coordinator {
-    Coordinator(onActivate: onActivate, onMove: onMove)
-  }
-
-  func makeNSView(context: Context) -> KeyboardSegmentButton {
-    let button = KeyboardSegmentButton()
-    button.target = context.coordinator
-    button.action = #selector(Coordinator.activate(_:))
-    button.title = label
-    button.setAccessibilityLabel(label)
-    button.toolTip = "Select \(label) color format"
-    button.onMove = context.coordinator.onMove
-    return button
-  }
-
-  func updateNSView(_ button: KeyboardSegmentButton, context: Context) {
-    context.coordinator.onActivate = onActivate
-    context.coordinator.onMove = onMove
-    button.title = label
-    button.setAccessibilityLabel(label)
-    button.setAccessibilityValue(isSelected ? "Selected" : "Not selected")
-    button.textColor = isSelected ? .labelColor : .secondaryLabelColor
-    button.onMove = context.coordinator.onMove
-  }
-
-  final class Coordinator: NSObject {
-    var onActivate: () -> Void
-    var onMove: (Int) -> Void
-
-    init(onActivate: @escaping () -> Void, onMove: @escaping (Int) -> Void) {
-      self.onActivate = onActivate
-      self.onMove = onMove
+  var body: some View {
+    Picker(selection: $selection) {
+      pickerOptions
+    } label: {
+      Text(selection.tabLabel)
     }
+    .pickerStyle(.menu)
+    .labelsHidden()
+    .controlSize(.small)
+    .fixedSize()
+    .help("Choose CSS \(selection.label) color space")
+    .accessibilityLabel("CSS profile: \(selection.label)")
+  }
 
-    @objc
-    func activate(_ sender: NSButton) {
-      onActivate()
+  @ViewBuilder
+  private var pickerOptions: some View {
+    ForEach(CSSColorSpace.allCases) { colorSpace in
+      Text(colorSpace.tabLabel)
+        .tag(colorSpace)
+        .help("Use CSS " + colorSpace.label)
     }
-  }
-}
-
-private final class KeyboardSegmentButton: NSButton {
-  var onMove: ((Int) -> Void)?
-  var textColor: NSColor = .secondaryLabelColor {
-    didSet { needsDisplay = true }
-  }
-
-  override init(frame frameRect: NSRect) {
-    super.init(frame: frameRect)
-    title = ""
-    isBordered = false
-    focusRingType = .default
-  }
-
-  required init?(coder: NSCoder) {
-    super.init(coder: coder)
-  }
-
-  override func draw(_ dirtyRect: NSRect) {
-    let paragraphStyle = NSMutableParagraphStyle()
-    paragraphStyle.alignment = .center
-    paragraphStyle.lineBreakMode = .byTruncatingTail
-
-    let attributes: [NSAttributedString.Key: Any] = [
-      .font: NSFont.systemFont(ofSize: 12, weight: .semibold),
-      .foregroundColor: textColor,
-      .paragraphStyle: paragraphStyle
-    ]
-    let textRect = bounds.insetBy(dx: 2, dy: 4)
-    title.draw(in: textRect, withAttributes: attributes)
-  }
-
-  override func drawFocusRingMask() {
-    NSBezierPath(roundedRect: bounds.insetBy(dx: 1, dy: 1), xRadius: 8, yRadius: 8).fill()
-  }
-
-  override var focusRingMaskBounds: NSRect {
-    bounds
-  }
-
-  override func keyDown(with event: NSEvent) {
-    switch event.keyCode {
-    case 123:
-      moveFocus(by: -1)
-    case 124:
-      moveFocus(by: 1)
-    case 36, 49, 76:
-      performClick(nil)
-    default:
-      super.keyDown(with: event)
-    }
-  }
-
-  private func moveFocus(by offset: Int) {
-    let target = offset < 0 ? previousValidKeyView : nextValidKeyView
-    guard let target = target as? KeyboardSegmentButton else {
-      return
-    }
-
-    onMove?(offset)
-    window?.makeFirstResponder(target)
   }
 }

@@ -7,10 +7,10 @@ final class PipetkaStore: ObservableObject {
   @Published var importedPalettes: [ImportedPalette] = []
   @Published var currentImportedPaletteIndex = 0
   @Published var isImportedPaletteVisible = false
-  @Published var format: ColorFormat = .hex {
+  @Published var format: ColorFormat = .extendedRGB {
     didSet { publishRecentPickItems() }
   }
-  @Published var cssColorSpace: CSSColorSpace = .sRGB {
+  @Published var cssColorSpace: CSSColorSpace = .oklch {
     didSet { publishRecentPickItems() }
   }
   @Published var alwaysOnTop = false

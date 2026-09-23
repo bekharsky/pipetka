@@ -7,7 +7,7 @@ A native macOS color picker app with AI assistant integration.
 ### Desktop App
 
 - **Screen Color Picker** - Magnified lens overlay to sample any pixel on screen with precise crosshair targeting
-- **Multiple Output Formats** - Copy colors as HEX, RGB, HSL, CSS HDR `color(srgb …)` / `color(display-p3 …)`, or SwiftUI Color syntax
+- **Multiple Output Formats** - CSS HDR with OKLCH is the default; copy colors as HEX, RGB, HSL, CSS Color profiles (`sRGB`, Display P3, Rec. 2020, Rec. 2100 PQ/HLG/Linear), or SwiftUI Color syntax
 - **HDR Sampling** - On macOS 15+ and Apple Silicon, preserves extended-range screen components instead of clipping them to 8-bit SDR
 - **Color Names** - Automatically identifies nearest named color for every pick (1,500+ color database)
 - **Pick History** - Persistent history with quick copy, export, and visual swatches
@@ -111,7 +111,9 @@ codesign -dv --verbose=4 build/native/Release/Pipetka.app 2>&1 \
 
 This recipe is for local development builds. App Store or Developer ID distribution should use its own distribution identity and the entitlements required by that distribution channel.
 
-While moving the picker, the lens uses the fast SDR sample only. HDR is sampled once on confirmation and preserved in CSS HDR and SwiftUI output. The CSS HDR tab can emit either extended sRGB or extended Display P3; components below 0 or above 1 are valid extended-range/out-of-gamut values. After confirmation, history swatches keep the HDR color when the display supports it, while HEX/RGB/HSL show a tone-mapped SDR approximation marked as `HDR`. If the HDR service does not answer promptly or returns an invalid buffer, the picker safely keeps the SDR sample instead of hanging or storing corrupted components.
+While moving the picker, the lens uses the fast SDR sample only. HDR is sampled once on confirmation and preserved in CSS profile and SwiftUI output. The CSS profile selector can emit extended sRGB, Display P3, Rec. 2020, or Rec. 2100 PQ/HLG/Linear. Components below 0 or above 1 are valid extended-range/out-of-gamut values in the linear and wide-gamut forms; PQ and HLG encode into their nominal display range. After confirmation, history swatches keep the HDR color when the display supports it, while HEX/RGB/HSL show a tone-mapped SDR approximation marked as `HDR`. If the HDR service does not answer promptly or returns an invalid buffer, the picker safely keeps the SDR sample instead of hanging or storing corrupted components.
+
+The output format row uses the standard SwiftUI tab picker on macOS 27 and a segmented picker fallback on earlier supported systems. The CSS tab is labeled with the selected profile (for example, `OKLCH` or `P3`), while the seven profiles remain available from the compact menu beside the history actions. System controls adopt the current macOS Liquid Glass appearance automatically.
 
 Update the App Store marketing version:
 

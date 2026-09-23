@@ -7,27 +7,11 @@ struct MainWindowRootView: View {
 
   var body: some View {
     VStack(alignment: .leading, spacing: 7) {
-      FormatPillControl(selection: $store.format, formats: ColorFormat.allCases)
-        .frame(height: 34)
-
-      if store.format == .extendedRGB {
-        HStack(spacing: 8) {
-          Text("CSS color space")
-            .font(.system(size: 11, weight: .medium))
-            .foregroundColor(.secondary)
-
-          Picker("CSS color space", selection: $store.cssColorSpace) {
-            ForEach(CSSColorSpace.allCases) { colorSpace in
-              Text(colorSpace.label).tag(colorSpace)
-            }
-          }
-          .labelsHidden()
-          .pickerStyle(.segmented)
-          .controlSize(.small)
-          .frame(maxWidth: .infinity)
-        }
-        .help("Extended HDR components can legitimately be below 0 or above 1.")
-      }
+      FormatPicker(
+        selection: $store.format,
+        cssColorSpace: $store.cssColorSpace,
+        formats: [.hex, .hsl, .extendedRGB, .swiftUI]
+      )
 
       if store.hasVisibleImportedPalettes, let palette = store.currentImportedPalette {
         ImportedPaletteSection(
@@ -42,6 +26,10 @@ struct MainWindowRootView: View {
       FooterBar(
         historyCount: store.history.count,
         isHistoryEmpty: store.history.isEmpty,
+        showsRGBFormat: store.format == .hex || store.format == .rgb,
+        showsCSSProfile: store.format == .extendedRGB,
+        format: $store.format,
+        cssColorSpace: $store.cssColorSpace,
         onCopyHistory: { format in
           copyText(
             exportColors(
@@ -50,9 +38,6 @@ struct MainWindowRootView: View {
               cssColorSpace: store.cssColorSpace
             )
           )
-        },
-        onClearHistory: {
-          store.clearAll()
         }
       )
     }

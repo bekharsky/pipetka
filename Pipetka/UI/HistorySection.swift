@@ -31,7 +31,7 @@ struct HistorySection: View {
               )
               .contextMenu {
                 ForEach(ColorFormat.allCases, id: \.rawValue) { format in
-                  Button("Copy as \(format.label)") {
+                  Button("Copy as \(format.label(for: store.cssColorSpace))") {
                     onCopyText(
                       formatColor(
                         item,
@@ -65,16 +65,28 @@ struct HistorySection: View {
 struct FooterBar: View {
   let historyCount: Int
   let isHistoryEmpty: Bool
+  let showsRGBFormat: Bool
+  let showsCSSProfile: Bool
+  @Binding var format: ColorFormat
+  @Binding var cssColorSpace: CSSColorSpace
   let onCopyHistory: (PaletteExportFormat) -> Void
-  let onClearHistory: () -> Void
 
   var body: some View {
     HStack(spacing: 10) {
       Text(historyCount == 1 ? "1 pick" : "\(historyCount) picks")
         .font(.system(size: 11))
         .foregroundColor(.secondary)
+        .fixedSize(horizontal: true, vertical: false)
 
       Spacer()
+
+      if showsRGBFormat {
+        RGBFormatPicker(selection: $format)
+      }
+
+      if showsCSSProfile {
+        CSSProfilePicker(selection: $cssColorSpace)
+      }
 
       MenuButton(
         title: "Copy history as...",
@@ -85,14 +97,6 @@ struct FooterBar: View {
             onCopyHistory(format)
           }
         }
-      )
-      .fixedSize()
-
-      NativeButton(
-        title: "Clear History",
-        controlSize: .small,
-        isEnabled: !isHistoryEmpty,
-        action: onClearHistory
       )
       .fixedSize()
     }

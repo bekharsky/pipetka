@@ -490,6 +490,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMe
     applyMainWindowLevel()
     NSRunningApplication.current.activate(options: [.activateIgnoringOtherApps])
     window.makeKeyAndOrderFront(nil)
+    window.clearInitialFocus()
   }
 
   private func showMainWindowWithoutActivating() {
@@ -499,6 +500,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMe
 
     applyMainWindowLevel()
     window.orderFront(nil)
+    window.clearInitialFocus()
   }
 
   private func hideMainWindow() {

@@ -125,6 +125,207 @@ public enum ColorUtilities {
     )
   }
 
+  /// Formats an extended sRGB color in the CSS Rec. 2020 color space.
+  ///
+  /// Rec. 2020 uses its own RGB primaries and transfer curve, so its
+  /// components cannot be copied from an extended-sRGB NSColor directly.
+  public static func cssRec2020String(
+    from color: NSColor,
+    precision: Int = 4
+  ) -> String {
+    guard let components = linearRec2020Components(from: color) else {
+      return "color(rec2020 0 0 0)"
+    }
+
+    let encoded = ColorComponents(
+      red: rec2020Encode(components.red),
+      green: rec2020Encode(components.green),
+      blue: rec2020Encode(components.blue)
+    )
+    return cssString(name: "rec2020", components: encoded, precision: precision)
+  }
+
+  /// Formats an extended sRGB color as linear Rec. 2100/Rec. 2020.
+  public static func cssRec2100LinearString(
+    from color: NSColor,
+    precision: Int = 4
+  ) -> String {
+    guard let components = linearRec2020Components(from: color) else {
+      return "color(rec2100-linear 0 0 0)"
+    }
+    return cssString(name: "rec2100-linear", components: components, precision: precision)
+  }
+
+  /// Formats an extended sRGB color with the Rec. 2100 PQ transfer curve.
+  /// PQ is a display-referred encoding, so negative values are clipped to
+  /// zero and values above the nominal range are clipped to one.
+  public static func cssRec2100PQString(
+    from color: NSColor,
+    precision: Int = 4
+  ) -> String {
+    guard let components = linearRec2020Components(from: color) else {
+      return "color(rec2100-pq 0 0 0)"
+    }
+
+    let encoded = ColorComponents(
+      red: pqEncode(components.red),
+      green: pqEncode(components.green),
+      blue: pqEncode(components.blue)
+    )
+    return cssString(name: "rec2100-pq", components: encoded, precision: precision)
+  }
+
+  /// Formats an extended sRGB color with the Rec. 2100 HLG transfer curve.
+  public static func cssRec2100HLGString(
+    from color: NSColor,
+    precision: Int = 4
+  ) -> String {
+    guard let components = linearRec2020Components(from: color) else {
+      return "color(rec2100-hlg 0 0 0)"
+    }
+
+    let encoded = ColorComponents(
+      red: hlgEncode(components.red),
+      green: hlgEncode(components.green),
+      blue: hlgEncode(components.blue)
+    )
+    return cssString(name: "rec2100-hlg", components: encoded, precision: precision)
+  }
+
+  /// Formats an extended sRGB color in the perceptual OKLCH space.
+  public static func cssOKLCHString(
+    from color: NSColor,
+    precision: Int = 4
+  ) -> String {
+    guard let components = extendedSRGBComponents(from: color) else {
+      return "oklch(0% 0 0)"
+    }
+
+    let lab = oklab(fromExtendedSRGB: components)
+    let chroma = hypot(lab.a, lab.b)
+    var hue = atan2(lab.b, lab.a) * 180 / .pi
+    if hue < 0 {
+      hue += 360
+    }
+
+    return String(
+      format: "oklch(%0.*f%% %0.*f %0.*f)",
+      precision,
+      Double(lab.lightness * 100),
+      precision,
+      Double(chroma),
+      precision,
+      Double(hue)
+    )
+  }
+
+  private static func cssString(
+    name: String,
+    components: ColorComponents,
+    precision: Int
+  ) -> String {
+    let format = "color(\(name) %0.*f %0.*f %0.*f)"
+    return String(
+      format: format,
+      precision, Double(components.red),
+      precision, Double(components.green),
+      precision, Double(components.blue)
+    )
+  }
+
+  private static func linearRec2020Components(from color: NSColor) -> ColorComponents? {
+    guard let sRGB = extendedSRGBComponents(from: color) else {
+      return nil
+    }
+
+    let linearSRGB = ColorComponents(
+      red: signedSRGBToLinear(sRGB.red),
+      green: signedSRGBToLinear(sRGB.green),
+      blue: signedSRGBToLinear(sRGB.blue)
+    )
+    let xyz = xyzD65(fromLinearSRGB: linearSRGB)
+
+    return ColorComponents(
+      red: 1.716651187971 * xyz.x - 0.355670783776 * xyz.y - 0.253366281374 * xyz.z,
+      green: -0.666684351832 * xyz.x + 1.616481236635 * xyz.y + 0.015768545813 * xyz.z,
+      blue: 0.017639857445 * xyz.x - 0.042770613258 * xyz.y + 0.942103121235 * xyz.z
+    )
+  }
+
+  private static func oklab(fromExtendedSRGB components: ColorComponents) -> (lightness: CGFloat, a: CGFloat, b: CGFloat) {
+    let linearSRGB = ColorComponents(
+      red: signedSRGBToLinear(components.red),
+      green: signedSRGBToLinear(components.green),
+      blue: signedSRGBToLinear(components.blue)
+    )
+    let xyz = xyzD65(fromLinearSRGB: linearSRGB)
+
+    let l = cubeRoot(0.8189330101 * xyz.x + 0.3618667424 * xyz.y - 0.1288597137 * xyz.z)
+    let m = cubeRoot(0.0329845436 * xyz.x + 0.9293118715 * xyz.y + 0.0361456387 * xyz.z)
+    let s = cubeRoot(0.0482003018 * xyz.x + 0.2643662691 * xyz.y + 0.6338517070 * xyz.z)
+
+    return (
+      0.2104542553 * l + 0.7936177850 * m - 0.0040720468 * s,
+      1.9779984951 * l - 2.4285922050 * m + 0.4505937099 * s,
+      0.0259040371 * l + 0.7827717662 * m - 0.8086757660 * s
+    )
+  }
+
+  private static func xyzD65(fromLinearSRGB components: ColorComponents) -> (x: CGFloat, y: CGFloat, z: CGFloat) {
+    (
+      0.4123907993 * components.red + 0.3575843394 * components.green + 0.1804807884 * components.blue,
+      0.2126390059 * components.red + 0.7151686788 * components.green + 0.0721923154 * components.blue,
+      0.0193308187 * components.red + 0.1191947798 * components.green + 0.9505321522 * components.blue
+    )
+  }
+
+  private static func signedSRGBToLinear(_ value: CGFloat) -> CGFloat {
+    let magnitude = abs(value)
+    let linear = magnitude <= 0.04045
+      ? magnitude / 12.92
+      : pow((magnitude + 0.055) / 1.055, 2.4)
+    return value < 0 ? -linear : linear
+  }
+
+  private static func rec2020Encode(_ value: CGFloat) -> CGFloat {
+    let magnitude = abs(value)
+    let encoded = magnitude < 0.018053968510807
+      ? 4.5 * magnitude
+      : 1.09929682680944 * pow(magnitude, 0.45) - 0.09929682680944
+    return value < 0 ? -encoded : encoded
+  }
+
+  private static func pqEncode(_ value: CGFloat) -> CGFloat {
+    let normalized = max(0, value) * 203 / 10_000
+    let n: CGFloat = 2610.0 / 16_384.0
+    let m: CGFloat = 2523.0 / 32.0
+    let c1: CGFloat = 3424.0 / 4096.0
+    let c2: CGFloat = 2413.0 / 128.0
+    let c3: CGFloat = 2392.0 / 128.0
+    let powered = pow(normalized, n)
+    let encoded = pow((c1 + c2 * powered) / (1 + c3 * powered), m)
+    return min(max(encoded, 0), 1)
+  }
+
+  private static func hlgEncode(_ value: CGFloat) -> CGFloat {
+    let a: CGFloat = 0.17883277
+    let b: CGFloat = 1 - 4 * a
+    let c: CGFloat = 0.5 - a * log(4 * a)
+    let normalized = max(0, value) / 3.7743
+    let encoded = normalized <= 1 / 12
+      ? sqrt(3 * normalized)
+      : a * log(12 * normalized - b) + c
+    return min(max(encoded, 0), 1)
+  }
+
+  private static func cubeRoot(_ value: CGFloat) -> CGFloat {
+    guard value != 0 else {
+      return 0
+    }
+    let root = pow(abs(value), 1.0 / 3.0)
+    return value < 0 ? -root : root
+  }
+
   /// Returns an SDR display color while preserving the hue of extended-range values.
   /// The original extended components remain available for export and copying.
   public static func displayColor(from color: NSColor) -> NSColor {

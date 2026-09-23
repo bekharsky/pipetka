@@ -1,7 +1,7 @@
 import Cocoa
 import PipetkaCore
 
-enum ColorFormat: Int, CaseIterable {
+enum ColorFormat: Int, CaseIterable, Hashable {
   case hex
   case rgb
   case hsl
@@ -22,38 +22,107 @@ enum ColorFormat: Int, CaseIterable {
       return "SwiftUI"
     }
   }
+
+  func label(for cssColorSpace: CSSColorSpace) -> String {
+    self == .extendedRGB ? cssColorSpace.tabLabel : label
+  }
 }
 
-enum CSSColorSpace: String, CaseIterable, Identifiable {
+enum CSSColorSpace: String, CaseIterable, Identifiable, Hashable {
+  case oklch
   case sRGB
   case displayP3
+  case rec2020
+  case rec2100PQ
+  case rec2100HLG
+  case rec2100Linear
 
   var id: String { rawValue }
 
   var label: String {
     switch self {
+    case .oklch:
+      return "OKLCH"
     case .sRGB:
       return "sRGB"
     case .displayP3:
       return "Display P3"
+    case .rec2020:
+      return "Rec. 2020"
+    case .rec2100PQ:
+      return "Rec. 2100 PQ"
+    case .rec2100HLG:
+      return "Rec. 2100 HLG"
+    case .rec2100Linear:
+      return "Rec. 2100 Linear"
+    }
+  }
+
+  var tabLabel: String {
+    switch self {
+    case .oklch:
+      return "OKLCH"
+    case .sRGB:
+      return "sRGB"
+    case .displayP3:
+      return "P3"
+    case .rec2020:
+      return "Rec. 2020"
+    case .rec2100PQ:
+      return "PQ"
+    case .rec2100HLG:
+      return "HLG"
+    case .rec2100Linear:
+      return "Linear"
+    }
+  }
+
+  var caption: String {
+    switch self {
+    case .oklch:
+      return "Perceptual"
+    case .sRGB:
+      return "SDR"
+    case .displayP3, .rec2020:
+      return "Wide gamut"
+    case .rec2100PQ:
+      return "HDR · PQ"
+    case .rec2100HLG:
+      return "HDR · HLG"
+    case .rec2100Linear:
+      return "HDR · Linear"
     }
   }
 
   var cssName: String {
     switch self {
+    case .oklch:
+      return "oklch"
     case .sRGB:
       return "srgb"
     case .displayP3:
       return "display-p3"
+    case .rec2020:
+      return "rec2020"
+    case .rec2100PQ:
+      return "rec2100-pq"
+    case .rec2100HLG:
+      return "rec2100-hlg"
+    case .rec2100Linear:
+      return "rec2100-linear"
     }
   }
 
-  var nsColorSpace: NSColorSpace {
+  var nsColorSpace: NSColorSpace? {
     switch self {
+    case .oklch:
+      return nil
     case .sRGB:
       return .extendedSRGB
     case .displayP3:
-      return ColorUtilities.extendedDisplayP3ColorSpace ?? .extendedSRGB
+      return ColorUtilities.extendedDisplayP3ColorSpace
+    case .rec2020, .rec2100PQ, .rec2100HLG, .rec2100Linear:
+      return nil
     }
   }
 }
@@ -156,21 +225,17 @@ func formatColor(
     let value = item.isExtendedRange
       ? item.displayHex
       : String(format: "#%02X%02X%02X", item.red, item.green, item.blue)
-    return item.isExtendedRange ? "HDR \(value) (use CSS HDR)" : value
+    return item.isExtendedRange ? "HDR \(value) (use \(cssColorSpace.tabLabel))" : value
   case .rgb:
     let value = item.isExtendedRange
       ? item.displayRGB
       : "rgb(\(item.red), \(item.green), \(item.blue))"
-    return item.isExtendedRange ? "HDR \(value) (use CSS HDR)" : value
+    return item.isExtendedRange ? "HDR \(value) (use \(cssColorSpace.tabLabel))" : value
   case .hsl:
     let value = formatHsl(item)
-    return item.isExtendedRange ? "HDR \(value) (use CSS HDR)" : value
+    return item.isExtendedRange ? "HDR \(value) (use \(cssColorSpace.tabLabel))" : value
   case .extendedRGB:
-    return ColorUtilities.cssColorString(
-      from: item.color,
-      in: cssColorSpace.nsColorSpace,
-      cssName: cssColorSpace.cssName
-    )
+    return formatCSSColor(item, colorSpace: cssColorSpace)
   case .swiftUI:
     let components = item.extendedComponents ?? ExtendedSRGBComponents(red: 0, green: 0, blue: 0)
     if item.isExtendedRange {
@@ -187,6 +252,30 @@ func formatColor(
       Double(components.green),
       Double(components.blue)
     )
+  }
+}
+
+private func formatCSSColor(_ item: PickedColor, colorSpace: CSSColorSpace) -> String {
+  switch colorSpace {
+  case .oklch:
+    return ColorUtilities.cssOKLCHString(from: item.extendedSRGBColor)
+  case .sRGB, .displayP3:
+    guard let nsColorSpace = colorSpace.nsColorSpace else {
+      return "color(\(colorSpace.cssName) 0 0 0)"
+    }
+    return ColorUtilities.cssColorString(
+      from: item.color,
+      in: nsColorSpace,
+      cssName: colorSpace.cssName
+    )
+  case .rec2020:
+    return ColorUtilities.cssRec2020String(from: item.extendedSRGBColor)
+  case .rec2100PQ:
+    return ColorUtilities.cssRec2100PQString(from: item.extendedSRGBColor)
+  case .rec2100HLG:
+    return ColorUtilities.cssRec2100HLGString(from: item.extendedSRGBColor)
+  case .rec2100Linear:
+    return ColorUtilities.cssRec2100LinearString(from: item.extendedSRGBColor)
   }
 }
 

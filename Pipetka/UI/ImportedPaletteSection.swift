@@ -107,7 +107,7 @@ struct ImportedPaletteSection: View {
                   )
                   .contextMenu {
                     ForEach(ColorFormat.allCases, id: \.rawValue) { format in
-                      Button("Copy as \(format.label)") {
+                      Button("Copy as \(format.label(for: store.cssColorSpace))") {
                         onCopyText(
                           formatColor(
                             item,
