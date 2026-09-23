@@ -63,7 +63,7 @@ build/native/Release/Pipetka.app
 
 ### Install and run the local Release build
 
-The local Release configuration is intentionally not sandboxed. This avoids the macOS sandbox-container consent loop for the locally installed utility. Keep Xcode code signing enabled: do not pass `CODE_SIGNING_ALLOWED=NO`, because that produces an unsigned/ad-hoc bundle that can make TCC permissions appear to reset on every reinstall.
+The local `Release` configuration is intentionally not sandboxed. It is the configuration for our local/GitHub non-App-Store build and avoids the macOS sandbox-container consent loop for the installed utility. Keep Xcode code signing enabled: do not pass `CODE_SIGNING_ALLOWED=NO`, because that produces an unsigned/ad-hoc bundle that can make TCC permissions appear to reset on every reinstall.
 
 ```bash
 APP_PATH="$PWD/build/native/Release/Pipetka.app"
@@ -110,6 +110,42 @@ codesign -dv --verbose=4 build/native/Release/Pipetka.app 2>&1 \
 ```
 
 This recipe is for local development builds. App Store or Developer ID distribution should use its own distribution identity and the entitlements required by that distribution channel.
+
+### App Store / Xcode Cloud build
+
+The shared `Pipetka` scheme archives with the `AppStore` configuration. This configuration enables App Sandbox and uses `Pipetka/AppStore.entitlements`, which grants only the sandbox and read-only access to files explicitly selected by the user. Xcode Cloud should archive the shared `Pipetka` scheme without overriding its Archive configuration; it will then use the App Store signing and provisioning managed by Xcode Cloud.
+
+To validate the App Store configuration locally without installing it over the non-sandboxed utility:
+
+```bash
+xcodebuild \
+  -project Pipetka.xcodeproj \
+  -scheme Pipetka \
+  -configuration AppStore \
+  -sdk macosx \
+  CODE_SIGN_IDENTITY="Apple Development" \
+  SYMROOT="$PWD/build/appstore" \
+  build
+
+codesign --verify --deep --strict build/appstore/AppStore/Pipetka.app
+codesign --display --entitlements :- build/appstore/AppStore/Pipetka.app
+```
+
+The output of the last command must contain `com.apple.security.app-sandbox` with a true value. Use the ordinary `Release` configuration for the local/GitHub build; use `AppStore` only for the App Store archive.
+
+### GitHub Release build
+
+GitHub Releases use the ordinary non-sandboxed `Release` configuration, signed with `Developer ID Application` and notarized before publishing. This keeps the downloaded utility separate from the App Store sandbox while still giving macOS a stable, verifiable code signature. The workflow runs for `v*` tags or can be started manually with a version.
+
+Add these repository Actions secrets before using `.github/workflows/release.yml`:
+
+- `APPLE_DEVELOPER_ID_CERTIFICATE_BASE64` — base64-encoded Developer ID Application `.p12` certificate.
+- `APPLE_DEVELOPER_ID_CERTIFICATE_PASSWORD` — password for that `.p12` file.
+- `APPLE_NOTARY_KEY_ID` — App Store Connect API key ID.
+- `APPLE_NOTARY_ISSUER_ID` — App Store Connect API issuer ID.
+- `APPLE_NOTARY_PRIVATE_KEY_BASE64` — base64-encoded `.p8` private key for the notary API key.
+
+The workflow deliberately fails when these credentials are missing; it must not silently fall back to an unsigned/ad-hoc release. The App Store build does not reuse this workflow: Xcode Cloud archives the shared `Pipetka` scheme with its `AppStore` Archive configuration.
 
 While moving the picker, the lens uses the fast SDR sample only. HDR is sampled once on confirmation and preserved in CSS profile and SwiftUI output. The CSS profile selector can emit extended sRGB, Display P3, Rec. 2020, or Rec. 2100 PQ/HLG/Linear. Components below 0 or above 1 are valid extended-range/out-of-gamut values in the linear and wide-gamut forms; PQ and HLG encode into their nominal display range. After confirmation, history swatches keep the HDR color when the display supports it, while HEX/RGB/HSL show a tone-mapped SDR approximation marked as `HDR`. If the HDR service does not answer promptly or returns an invalid buffer, the picker safely keeps the SDR sample instead of hanging or storing corrupted components.
 
