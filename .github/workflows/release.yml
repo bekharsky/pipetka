@@ -2,13 +2,15 @@ name: GitHub Release
 
 on:
   push:
+    branches:
+      - release
     tags:
       - "v*"
   workflow_dispatch:
     inputs:
       version:
         description: "Marketing version, for example 1.0.12"
-        required: true
+        required: false
         type: string
 
 permissions:
@@ -40,7 +42,7 @@ jobs:
     runs-on: macos-15
 
     env:
-      RELEASE_REF: ${{ inputs.version || github.ref_name }}
+      REQUESTED_VERSION: ${{ inputs.version }}
       APPLE_DEVELOPER_ID_CERTIFICATE_BASE64: ${{ secrets.APPLE_DEVELOPER_ID_CERTIFICATE_BASE64 }}
       APPLE_DEVELOPER_ID_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_DEVELOPER_ID_CERTIFICATE_PASSWORD }}
       APPLE_NOTARY_KEY_ID: ${{ secrets.APPLE_NOTARY_KEY_ID }}
@@ -69,9 +71,19 @@ jobs:
             fi
           done
 
-          version="${RELEASE_REF#v}"
+          if [[ -n "$REQUESTED_VERSION" ]]; then
+            version="${REQUESTED_VERSION#v}"
+          elif [[ "$GITHUB_REF_TYPE" == "tag" ]]; then
+            version="${GITHUB_REF_NAME#v}"
+          else
+            version="$(sed -n -E \
+              's/^[[:space:]]*MARKETING_VERSION[[:space:]]*=[[:space:]]*([^[:space:]]+).*$/\1/p' \
+              Pipetka/Configs/AppInfo.xcconfig \
+              | head -n 1)"
+          fi
+
           if [[ ! "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+([.-][0-9A-Za-z.-]+)?$ ]]; then
-            echo "::error::Release version must look like 1.0.12; got '${RELEASE_REF}'"
+            echo "::error::Release version must look like 1.0.12; got '${version:-empty}'"
             exit 1
           fi
 
@@ -200,11 +212,15 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release create "$RELEASE_TAG" \
-            "$RUNNER_TEMP/$ARTIFACT_NAME" \
-            --target "$GITHUB_SHA" \
-            --title "Pipetka $MARKETING_VERSION" \
-            --generate-notes
+          if gh release view "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "GitHub Release $RELEASE_TAG already exists; keeping the existing release asset."
+          else
+            gh release create "$RELEASE_TAG" \
+              "$RUNNER_TEMP/$ARTIFACT_NAME" \
+              --target "$GITHUB_SHA" \
+              --title "Pipetka $MARKETING_VERSION" \
+              --generate-notes
+          fi
 
       - name: Remove temporary signing keychain
         if: ${{ always() }}

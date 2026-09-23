@@ -147,6 +147,14 @@ Add these repository Actions secrets before using `.github/workflows/release.yml
 
 The workflow deliberately fails when these credentials are missing; it must not silently fall back to an unsigned/ad-hoc release. The App Store build does not reuse this workflow: Xcode Cloud archives the shared `Pipetka` scheme with its `AppStore` Archive configuration.
 
+The distribution branch is `release`. The normal release flow is:
+
+1. On `main`, bump `MARKETING_VERSION` with `./bump-version.sh --patch` (or `--minor`/`--major`), commit it, and push `main`.
+2. Merge `main` into `release` and push `release`.
+3. That push starts both the GitHub Release workflow and the Xcode Cloud workflow configured for the `release` branch. The GitHub workflow reads the marketing version from `Pipetka/Configs/AppInfo.xcconfig`; a `v*` tag or a manual workflow run remains available as an alternative.
+
+If the version already has a GitHub Release, the workflow still validates and notarizes the branch build but leaves the existing release asset untouched. Bump the marketing version before the next distribution merge when a new GitHub release is required.
+
 While moving the picker, the lens uses the fast SDR sample only. HDR is sampled once on confirmation and preserved in CSS profile and SwiftUI output. The CSS profile selector can emit extended sRGB, Display P3, Rec. 2020, or Rec. 2100 PQ/HLG/Linear. Components below 0 or above 1 are valid extended-range/out-of-gamut values in the linear and wide-gamut forms; PQ and HLG encode into their nominal display range. After confirmation, history swatches keep the HDR color when the display supports it, while HEX/RGB/HSL show a tone-mapped SDR approximation marked as `HDR`. If the HDR service does not answer promptly or returns an invalid buffer, the picker safely keeps the SDR sample instead of hanging or storing corrupted components.
 
 The output format row uses the standard SwiftUI tab picker on macOS 27 and a segmented picker fallback on earlier supported systems. The CSS tab is labeled with the selected profile (for example, `OKLCH` or `P3`), while the seven profiles remain available from the compact menu beside the history actions. System controls adopt the current macOS Liquid Glass appearance automatically.
