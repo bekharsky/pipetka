@@ -1,0 +1,57 @@
+name: Legacy SDK Build
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Build with Xcode 16.4
+    runs-on: macos-15
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Show toolchain
+        run: |
+          xcodebuild -version
+          xcodebuild -showsdks | sed -n '/macOS SDKs:/,/tvOS SDKs:/p'
+
+      - name: Build unsigned Release app
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          build_root="$RUNNER_TEMP/pipetka-legacy-build"
+          derived_data_path="$build_root/derived-data"
+          app_path="$derived_data_path/Build/Products/Release/Pipetka.app"
+          artifact_name="Pipetka-${GITHUB_SHA::7}-legacy-sdk.zip"
+
+          xcodebuild \
+            -quiet \
+            -project Pipetka.xcodeproj \
+            -scheme Pipetka \
+            -configuration Release \
+            -sdk macosx \
+            -derivedDataPath "$derived_data_path" \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            build
+
+          test -d "$app_path"
+          ditto -c -k --sequesterRsrc --keepParent \
+            "$app_path" \
+            "$RUNNER_TEMP/$artifact_name"
+
+          echo "ARTIFACT_NAME=$artifact_name" >> "$GITHUB_ENV"
+
+      - name: Upload app artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Pipetka-legacy-sdk-${{ github.sha }}
+          path: ${{ runner.temp }}/${{ env.ARTIFACT_NAME }}
+          if-no-files-found: error
+          retention-days: 14

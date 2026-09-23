@@ -17,6 +17,7 @@ final class MainWindow: NSWindow, NSToolbarDelegate {
     static let importItem = NSToolbarItem.Identifier("com.kharion.pipetka.toolbar.import")
     static let pick = NSToolbarItem.Identifier("com.kharion.pipetka.toolbar.pick")
     static let pickGroup = NSToolbarItem.Identifier("com.kharion.pipetka.toolbar.pick-group")
+    static let utilityGroup = NSToolbarItem.Identifier("com.kharion.pipetka.toolbar.utility-group")
     static let clearHistory = NSToolbarItem.Identifier("com.kharion.pipetka.toolbar.clear-history")
     static let spacer = NSToolbarItem.Identifier.flexibleSpace
   }
@@ -114,7 +115,12 @@ final class MainWindow: NSWindow, NSToolbarDelegate {
       guard let image = NSImage(systemSymbolName: systemName, accessibilityDescription: nil) else {
         return nil
       }
-      let config = NSImage.SymbolConfiguration(pointSize: 14, weight: .regular)
+      var config = NSImage.SymbolConfiguration(pointSize: 14, weight: .regular)
+      if let tintColor {
+        config = config.applying(
+          NSImage.SymbolConfiguration(paletteColors: [tintColor])
+        )
+      }
       configuredImage = image.withSymbolConfiguration(config) ?? image
     } else {
       guard let image = PlatformSymbol.image(systemName: systemName) else {
@@ -123,18 +129,7 @@ final class MainWindow: NSWindow, NSToolbarDelegate {
       configuredImage = image
     }
 
-    guard let tintColor else {
-      return configuredImage
-    }
-
-    let tintedImage = configuredImage.copy() as? NSImage ?? configuredImage
-    tintedImage.lockFocus()
-    defer { tintedImage.unlockFocus() }
-
-    tintColor.set()
-    NSRect(origin: .zero, size: tintedImage.size).fill(using: .sourceAtop)
-    tintedImage.isTemplate = false
-    return tintedImage
+    return configuredImage
   }
 
   private func setupToolbar() {
@@ -287,19 +282,15 @@ final class MainWindow: NSWindow, NSToolbarDelegate {
   func toolbarAllowedItemIdentifiers(_ toolbar: NSToolbar) -> [NSToolbarItem.Identifier] {
     [
       ToolbarIdentifier.spacer,
-      ToolbarIdentifier.onTop,
-      ToolbarIdentifier.importItem,
-      ToolbarIdentifier.pickGroup,
-      ToolbarIdentifier.clearHistory
+      ToolbarIdentifier.utilityGroup,
+      ToolbarIdentifier.pickGroup
     ]
   }
 
   func toolbarDefaultItemIdentifiers(_ toolbar: NSToolbar) -> [NSToolbarItem.Identifier] {
     [
       ToolbarIdentifier.spacer,
-      ToolbarIdentifier.onTop,
-      ToolbarIdentifier.importItem,
-      ToolbarIdentifier.clearHistory,
+      ToolbarIdentifier.utilityGroup,
       ToolbarIdentifier.pickGroup
     ]
   }
@@ -310,6 +301,8 @@ final class MainWindow: NSWindow, NSToolbarDelegate {
     willBeInsertedIntoToolbar flag: Bool
   ) -> NSToolbarItem? {
     switch itemIdentifier {
+    case ToolbarIdentifier.utilityGroup:
+      return makeUtilityToolbarGroup()
     case ToolbarIdentifier.pickGroup:
       return makePickToolbarGroup()
     case ToolbarIdentifier.onTop:
@@ -342,7 +335,7 @@ final class MainWindow: NSWindow, NSToolbarDelegate {
     let pickItem = makeToolbarItem(
       identifier: ToolbarIdentifier.pick,
       label: "Pick",
-      symbolName: "eyedropper.full",
+      symbolName: "eyedropper",
       action: #selector(handleToolbarPick(_:)),
       tintColor: .controlAccentColor
     )
@@ -351,6 +344,36 @@ final class MainWindow: NSWindow, NSToolbarDelegate {
     group.label = "Pick"
     group.paletteLabel = "Pick"
     group.toolTip = "Pick"
+    group.visibilityPriority = .high
+    return group
+  }
+
+  private func makeUtilityToolbarGroup() -> NSToolbarItemGroup {
+    let group = NSToolbarItemGroup(itemIdentifier: ToolbarIdentifier.utilityGroup)
+    group.subitems = [
+      makeToolbarItem(
+        identifier: ToolbarIdentifier.onTop,
+        label: "On Top",
+        symbolName: store.alwaysOnTop ? "pin.fill" : "pin",
+        action: #selector(handleToolbarToggleOnTop(_:))
+      ),
+      makeToolbarItem(
+        identifier: ToolbarIdentifier.importItem,
+        label: "Import",
+        symbolName: "folder.badge.plus",
+        action: #selector(handleToolbarImport(_:))
+      ),
+      makeToolbarItem(
+        identifier: ToolbarIdentifier.clearHistory,
+        label: "Clear History",
+        symbolName: "eraser",
+        action: #selector(handleToolbarClearHistory(_:))
+      )
+    ]
+    group.label = "Window Controls"
+    group.paletteLabel = "Window Controls"
+    group.toolTip = "Window Controls"
+    group.selectionMode = .momentary
     group.visibilityPriority = .high
     return group
   }
