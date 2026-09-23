@@ -7,7 +7,8 @@ A native macOS color picker app with AI assistant integration.
 ### Desktop App
 
 - **Screen Color Picker** - Magnified lens overlay to sample any pixel on screen with precise crosshair targeting
-- **Multiple Output Formats** - Copy colors as HEX, RGB, HSL, or SwiftUI Color syntax
+- **Multiple Output Formats** - CSS HDR with OKLCH is the default; copy colors as HEX, RGB, HSL, CSS Color profiles (`sRGB`, Display P3, Rec. 2020, Rec. 2100 PQ/HLG/Linear), or SwiftUI Color syntax
+- **HDR Sampling** - On macOS 15+ and Apple Silicon, preserves extended-range screen components instead of clipping them to 8-bit SDR
 - **Color Names** - Automatically identifies nearest named color for every pick (1,500+ color database)
 - **Pick History** - Persistent history with quick copy, export, and visual swatches
 - **Image Palette Extraction** - Import images to extract dominant color palettes (up to 8 colors)
@@ -19,7 +20,7 @@ A native macOS color picker app with AI assistant integration.
 
 Pipetka includes a Model Context Protocol (MCP) server that exposes color picking functionality to AI assistants like Claude and GitHub Copilot:
 
-- **`pick_color`** - Opens the interactive screen picker and returns hex, rgb, hsl values with visual swatch and color name
+- **`pick_color`** - Opens the interactive screen picker and returns hex, rgb, hsl, and extendedRGB values with visual swatch and color name
 - **`extract_palette`** - Opens file picker to extract dominant colors from images with swatches and names
 
 The MCP server allows AI assistants to help you pick colors and extract palettes directly from conversations. When picking colors, the IDE window automatically hides to give you an unobstructed view of the screen.
@@ -52,11 +53,67 @@ Build the macOS app to `build/native/Release/`:
 xcodebuild -project Pipetka.xcodeproj -scheme Pipetka -configuration Release SYMROOT="$PWD/build/native" build
 ```
 
+The project uses the local Apple Development signing identity for the app target. Keep code signing enabled and use the same identity for local rebuilds so macOS Screen Recording permission remains associated with the installed app.
+
 Built app location:
 
 ```bash
 build/native/Release/Pipetka.app
 ```
+
+### Install and run the local Release build
+
+The local Release configuration is intentionally not sandboxed. This avoids the macOS sandbox-container consent loop for the locally installed utility. Keep Xcode code signing enabled: do not pass `CODE_SIGNING_ALLOWED=NO`, because that produces an unsigned/ad-hoc bundle that can make TCC permissions appear to reset on every reinstall.
+
+```bash
+APP_PATH="$PWD/build/native/Release/Pipetka.app"
+
+xcodebuild \
+  -project Pipetka.xcodeproj \
+  -scheme Pipetka \
+  -configuration Release \
+  -sdk macosx \
+  CODE_SIGN_IDENTITY="Apple Development" \
+  SYMROOT="$PWD/build/native" \
+  build
+
+osascript -e "do shell script \"killall Pipetka 2>/dev/null || true; rm -rf /Applications/Pipetka.app; ditto --rsrc --extattr '$APP_PATH' /Applications/Pipetka.app\" with administrator privileges"
+open -a /Applications/Pipetka.app
+```
+
+Pipetka requests Screen Recording only when `Pick Color` is used, not on app launch. If the permission database needs to be cleared while debugging, reset only this app's entry and then relaunch it:
+
+```bash
+tccutil reset ScreenCapture com.kharion.pipetka
+killall Pipetka 2>/dev/null || true
+open -a /Applications/Pipetka.app
+```
+
+#### Reusing the local TCC/signing setup in another macOS utility
+
+macOS TCC associates Screen Recording permission with the app's code requirement, not only its bundle identifier. An unsigned/ad-hoc build (`CODE_SIGN_IDENTITY = "-"` or `CODE_SIGNING_ALLOWED=NO`) can therefore look like a new app after every rebuild. A sandboxed local utility can also trigger a separate container-consent loop.
+
+For a locally installed, non-App-Store utility, keep these settings stable:
+
+- `PRODUCT_BUNDLE_IDENTIFIER` stays unchanged between installs.
+- `DEVELOPMENT_TEAM` points to the same team.
+- `CODE_SIGN_STYLE = Automatic` and `CODE_SIGN_IDENTITY = "Apple Development"`.
+- Release uses `ENABLE_APP_SANDBOX = NO` and an empty/non-sandboxed Release entitlements file.
+- Build with signing enabled (`CODE_SIGNING_ALLOWED=YES`, or simply omit the override).
+
+Verify the result before installing:
+
+```bash
+codesign --verify --deep --strict build/native/Release/Pipetka.app
+codesign -dv --verbose=4 build/native/Release/Pipetka.app 2>&1 \
+  | rg 'Identifier|TeamIdentifier|Authority|flags'
+```
+
+This recipe is for local development builds. App Store or Developer ID distribution should use its own distribution identity and the entitlements required by that distribution channel.
+
+While moving the picker, the lens uses the fast SDR sample only. HDR is sampled once on confirmation and preserved in CSS profile and SwiftUI output. The CSS profile selector can emit extended sRGB, Display P3, Rec. 2020, or Rec. 2100 PQ/HLG/Linear. Components below 0 or above 1 are valid extended-range/out-of-gamut values in the linear and wide-gamut forms; PQ and HLG encode into their nominal display range. After confirmation, history swatches keep the HDR color when the display supports it, while HEX/RGB/HSL show a tone-mapped SDR approximation marked as `HDR`. If the HDR service does not answer promptly or returns an invalid buffer, the picker safely keeps the SDR sample instead of hanging or storing corrupted components.
+
+The output format row uses the standard SwiftUI tab picker on macOS 27 and a segmented picker fallback on earlier supported systems. The CSS tab is labeled with the selected profile (for example, `OKLCH` or `P3`), while the seven profiles remain available from the compact menu beside the history actions. System controls adopt the current macOS Liquid Glass appearance automatically.
 
 Update the App Store marketing version:
 

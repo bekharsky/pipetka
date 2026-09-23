@@ -26,6 +26,8 @@
 	<string>public.app-category.graphics-design</string>
 	<key>NSHumanReadableCopyright</key>
 	<string>$(PRODUCT_COPYRIGHT)</string>
+	<key>NSScreenCaptureUsageDescription</key>
+	<string>Pipetka needs Screen Recording access to sample SDR and HDR pixels under the cursor.</string>
 	<key>NSMainNibFile</key>
 	<string>MainMenu</string>
 	<key>NSPrincipalClass</key>

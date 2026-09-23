@@ -52,7 +52,13 @@ struct ImportedPaletteSection: View {
                 controlSize: .small,
                 items: PaletteExportFormat.allCases.map { format in
                   MenuButtonItem(title: format.label) {
-                    onCopyText(exportColors(palette.colors, format: format))
+                    onCopyText(
+                      exportColors(
+                        palette.colors,
+                        format: format,
+                        cssColorSpace: store.cssColorSpace
+                      )
+                    )
                   }
                 }
               )
@@ -83,17 +89,32 @@ struct ImportedPaletteSection: View {
               HStack(spacing: 8) {
                 ForEach(palette.colors) { item in
                   PaletteSwatchChip(
-                    color: item.rgbColor,
-                    toolTip: swatchToolTip(for: item),
+                    color: item.previewColor,
+                    toolTip: swatchToolTip(
+                      for: item,
+                      cssColorSpace: store.cssColorSpace
+                    ),
                     onBurst: showBurst(frame:color:),
                     action: {
-                      onCopyText(formatColor(item, format: store.format))
+                      onCopyText(
+                        formatColor(
+                          item,
+                          format: store.format,
+                          cssColorSpace: store.cssColorSpace
+                        )
+                      )
                     }
                   )
                   .contextMenu {
                     ForEach(ColorFormat.allCases, id: \.rawValue) { format in
-                      Button("Copy as \(format.label)") {
-                        onCopyText(formatColor(item, format: format))
+                      Button("Copy as \(format.label(for: store.cssColorSpace))") {
+                        onCopyText(
+                          formatColor(
+                            item,
+                            format: format,
+                            cssColorSpace: store.cssColorSpace
+                          )
+                        )
                       }
                     }
                   }
@@ -155,9 +176,15 @@ struct SwatchBurst: Identifiable {
   var isLifted: Bool
 }
 
-func swatchToolTip(for item: PickedColor) -> String {
+func swatchToolTip(
+  for item: PickedColor,
+  cssColorSpace: CSSColorSpace = .sRGB
+) -> String {
   let match = NamedColorLookup.nearestMatch(red: item.red, green: item.green, blue: item.blue)
-  return "\(match.name)\n\(formatColor(item, format: .hex))"
+  let value = item.isExtendedRange
+    ? formatColor(item, format: .extendedRGB, cssColorSpace: cssColorSpace)
+    : formatColor(item, format: .hex)
+  return "\(match.name)\n\(value)"
 }
 
 struct PreviewImageView: View {

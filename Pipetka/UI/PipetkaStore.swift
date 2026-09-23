@@ -7,7 +7,10 @@ final class PipetkaStore: ObservableObject {
   @Published var importedPalettes: [ImportedPalette] = []
   @Published var currentImportedPaletteIndex = 0
   @Published var isImportedPaletteVisible = false
-  @Published var format: ColorFormat = .hex {
+  @Published var format: ColorFormat = .extendedRGB {
+    didSet { publishRecentPickItems() }
+  }
+  @Published var cssColorSpace: CSSColorSpace = .oklch {
     didSet { publishRecentPickItems() }
   }
   @Published var alwaysOnTop = false
@@ -45,12 +48,18 @@ final class PipetkaStore: ObservableObject {
   }
 
   func addPick(red: Int, green: Int, blue: Int, previewPng: Data?) {
-    let color = NSColor(
-      srgbRed: CGFloat(red) / 255,
-      green: CGFloat(green) / 255,
-      blue: CGFloat(blue) / 255,
-      alpha: 1
+    addPick(
+      color: NSColor(
+        srgbRed: CGFloat(red) / 255,
+        green: CGFloat(green) / 255,
+        blue: CGFloat(blue) / 255,
+        alpha: 1
+      ),
+      previewPng: previewPng
     )
+  }
+
+  func addPick(color: NSColor, previewPng: Data?) {
     let item = PickedColor(
       color: color,
       previewImage: previewPng.flatMap(NSImage.init(data:)),
@@ -126,8 +135,12 @@ final class PipetkaStore: ObservableObject {
   func currentRecentPickItems() -> [RecentPickMenuItem] {
     Array(history.prefix(10)).map {
       RecentPickMenuItem(
-        text: recentPickMenuText(for: $0, format: format),
-        color: $0.rgbColor
+        text: recentPickMenuText(
+          for: $0,
+          format: format,
+          cssColorSpace: cssColorSpace
+        ),
+        color: $0.previewColor
       )
     }
   }

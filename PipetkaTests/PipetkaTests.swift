@@ -65,10 +65,28 @@ class PipetkaTests: XCTestCase {
 
     XCTAssertEqual(formatColor(item, format: .hex), "#FF8000")
     XCTAssertEqual(formatColor(item, format: .rgb), "rgb(255, 128, 0)")
+    XCTAssertTrue(
+      formatColor(item, format: .extendedRGB, cssColorSpace: .oklch).hasPrefix("oklch(")
+    )
     XCTAssertEqual(
       formatColor(item, format: .swiftUI),
       "Color(red: 1.000, green: 0.502, blue: 0.000)"
     )
+  }
+
+  func testOKLCHPreservesExtendedHDRValuesWithoutNaN() {
+    let color = NSColor(
+      colorSpace: .extendedSRGB,
+      components: [1.6369, -0.5836, 1.3915, 1],
+      count: 4
+    )
+    let item = PickedColor(color: color, previewImage: nil, pickedAt: Date(timeIntervalSince1970: 0))
+
+    let value = formatColor(item, format: .extendedRGB, cssColorSpace: .oklch)
+
+    XCTAssertTrue(value.hasPrefix("oklch("))
+    XCTAssertFalse(value.contains("nan"))
+    XCTAssertFalse(value.contains("NaN"))
   }
 
   func testFormatColorHslOutputForOrange() {
@@ -81,6 +99,118 @@ class PipetkaTests: XCTestCase {
     let item = makePickedColor(red: 128, green: 128, blue: 128)
 
     XCTAssertEqual(formatHsl(item), "hsl(0 0% 50%)")
+  }
+
+  func testExtendedRGBFormatPreservesHDRComponents() {
+    let color = NSColor(
+      colorSpace: .extendedSRGB,
+      components: [1.25, 0.5, 0.25, 1],
+      count: 4
+    )
+    let item = PickedColor(color: color, previewImage: nil, pickedAt: Date(timeIntervalSince1970: 0))
+
+    XCTAssertTrue(item.isExtendedRange)
+    XCTAssertEqual(formatColor(item, format: .extendedRGB), "color(srgb 1.2500 0.5000 0.2500)")
+    XCTAssertEqual(formatColor(item, format: .hex), "HDR #FF6633 (use sRGB)")
+    XCTAssertEqual(formatColor(item, format: .rgb), "HDR rgb(255, 102, 51) (use sRGB)")
+    XCTAssertTrue(formatColor(item, format: .hsl).hasPrefix("HDR hsl("))
+    XCTAssertEqual(
+      formatColor(item, format: .swiftUI),
+      "Color(nsColor: NSColor(colorSpace: .extendedSRGB, components: [1.250, 0.500, 0.250, 1.000], count: 4))"
+    )
+    XCTAssertTrue(displayFormatColor(item, format: .swiftUI).contains("\n"))
+  }
+
+  func testCSSHDRCanUseDisplayP3() {
+    guard
+      let cgColorSpace = CGColorSpace(name: CGColorSpace.extendedDisplayP3),
+      let cgColor = CGColor(
+        colorSpace: cgColorSpace,
+        components: [1.25, 0.5, 0.25, 1]
+      ),
+      let color = NSColor(cgColor: cgColor)
+    else {
+      XCTFail("Extended Display P3 is unavailable")
+      return
+    }
+
+    let item = PickedColor(color: color, previewImage: nil, pickedAt: Date(timeIntervalSince1970: 0))
+
+    XCTAssertEqual(
+      formatColor(item, format: .extendedRGB, cssColorSpace: .displayP3),
+      "color(display-p3 1.2500 0.5000 0.2500)"
+    )
+  }
+
+  func testCSSProfilesUseTheirOwnEncodings() {
+    let color = NSColor(
+      colorSpace: .extendedSRGB,
+      components: [1.25, 0.5, 0.25, 1],
+      count: 4
+    )
+    let item = PickedColor(color: color, previewImage: nil, pickedAt: Date(timeIntervalSince1970: 0))
+
+    XCTAssertTrue(formatColor(item, format: .extendedRGB, cssColorSpace: .rec2020).hasPrefix("color(rec2020 "))
+    XCTAssertTrue(formatColor(item, format: .extendedRGB, cssColorSpace: .rec2100Linear).hasPrefix("color(rec2100-linear "))
+    XCTAssertTrue(formatColor(item, format: .extendedRGB, cssColorSpace: .rec2100PQ).hasPrefix("color(rec2100-pq "))
+    XCTAssertTrue(formatColor(item, format: .extendedRGB, cssColorSpace: .rec2100HLG).hasPrefix("color(rec2100-hlg "))
+  }
+
+  func testHDRDisplayColorToneMapsWithoutChangingExportComponents() {
+    let color = NSColor(
+      colorSpace: .extendedSRGB,
+      components: [0, 35.0312, 25.6562, 1],
+      count: 4
+    )
+    let display = ColorUtilities.displayColor(from: color).usingColorSpace(.deviceRGB)!
+
+    XCTAssertEqual(display.redComponent, 0, accuracy: 0.001)
+    XCTAssertEqual(display.greenComponent, 1, accuracy: 0.001)
+    XCTAssertEqual(display.blueComponent, 25.6562 / 35.0312, accuracy: 0.001)
+    XCTAssertEqual(
+      ColorUtilities.cssExtendedSRGBString(from: color),
+      "color(srgb 0.0000 35.0312 25.6562)"
+    )
+  }
+
+  func testHDRFormatsDoNotPretendOutOfRangeColorIsBlack() {
+    let color = NSColor(
+      colorSpace: .extendedSRGB,
+      components: [0, -40.0938, 0, 1],
+      count: 4
+    )
+    let item = PickedColor(color: color, previewImage: nil, pickedAt: Date(timeIntervalSince1970: 0))
+
+    XCTAssertEqual(formatColor(item, format: .hex), "HDR #000000 (use sRGB)")
+    XCTAssertEqual(namedColorName(for: item), "HDR color")
+    XCTAssertTrue(historySubtitle(for: item).contains("color(srgb 0.0000 -40.0938 0.0000)"))
+  }
+
+  func testHDRHalfFloatDecoderPreservesExtendedValuesAndRejectsNaN() {
+    XCTAssertEqual(HDRColorDecoder.float(fromHalfBits: 0x3C00), 1, accuracy: 0.0001)
+    XCTAssertEqual(HDRColorDecoder.float(fromHalfBits: 0x3800), 0.5, accuracy: 0.0001)
+    XCTAssertEqual(HDRColorDecoder.float(fromHalfBits: 0x4000), 2, accuracy: 0.0001)
+    XCTAssertTrue(HDRColorDecoder.float(fromHalfBits: 0x7E00).isNaN)
+
+    var pixel: [UInt8] = [
+      0x00, 0x3C, // 1.0
+      0x00, 0x38, // 0.5
+      0x00, 0x40, // 2.0
+      0x00, 0x3C  // 1.0 alpha
+    ]
+    let components = pixel.withUnsafeMutableBufferPointer { buffer in
+      (0..<4).compactMap { index in
+        HDRColorDecoder.component(in: buffer.baseAddress!, at: index * 2)
+      }
+    }
+    XCTAssertEqual(components, [1, 0.5, 2, 1])
+
+    pixel[2] = 0x00
+    pixel[3] = 0x7E
+    let rejected = pixel.withUnsafeBufferPointer {
+      HDRColorDecoder.component(in: $0.baseAddress!, at: 2)
+    }
+    XCTAssertNil(rejected)
   }
 
   func testLensFrameUsesPreferredPlacementWhenSpaceAllows() {

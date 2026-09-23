@@ -7,8 +7,11 @@ struct MainWindowRootView: View {
 
   var body: some View {
     VStack(alignment: .leading, spacing: 7) {
-      FormatPillControl(selection: $store.format, formats: ColorFormat.allCases)
-        .frame(height: 34)
+      FormatPicker(
+        selection: $store.format,
+        cssColorSpace: $store.cssColorSpace,
+        formats: [.hex, .hsl, .extendedRGB, .swiftUI]
+      )
 
       if store.hasVisibleImportedPalettes, let palette = store.currentImportedPalette {
         ImportedPaletteSection(
@@ -23,11 +26,18 @@ struct MainWindowRootView: View {
       FooterBar(
         historyCount: store.history.count,
         isHistoryEmpty: store.history.isEmpty,
+        showsRGBFormat: store.format == .hex || store.format == .rgb,
+        showsCSSProfile: store.format == .extendedRGB,
+        format: $store.format,
+        cssColorSpace: $store.cssColorSpace,
         onCopyHistory: { format in
-          copyText(exportColors(store.history, format: format))
-        },
-        onClearHistory: {
-          store.clearAll()
+          copyText(
+            exportColors(
+              store.history,
+              format: format,
+              cssColorSpace: store.cssColorSpace
+            )
+          )
         }
       )
     }

@@ -22,13 +22,19 @@ public struct PaletteColorBucket {
   public let color: NSColor
   public let pixelCount: Int
 
-  public var rgbColor: NSColor { color.usingColorSpace(.deviceRGB) ?? color }
+  public var rgbColor: NSColor { color.usingColorSpace(.extendedSRGB) ?? color }
 
-  public var red:   Int { Int(round(rgbColor.redComponent   * 255)) }
-  public var green: Int { Int(round(rgbColor.greenComponent * 255)) }
-  public var blue:  Int { Int(round(rgbColor.blueComponent  * 255)) }
+  public var red: Int {
+    ColorUtilities.byteComponent(ColorUtilities.extendedSRGBComponents(from: rgbColor)?.red ?? 0)
+  }
+  public var green: Int {
+    ColorUtilities.byteComponent(ColorUtilities.extendedSRGBComponents(from: rgbColor)?.green ?? 0)
+  }
+  public var blue: Int {
+    ColorUtilities.byteComponent(ColorUtilities.extendedSRGBComponents(from: rgbColor)?.blue ?? 0)
+  }
 
-  public var hex: String { String(format: "#%02X%02X%02X", red, green, blue) }
+  public var hex: String { ColorUtilities.hexString(from: rgbColor) }
   
   public init(color: NSColor, pixelCount: Int) {
     self.color = color
