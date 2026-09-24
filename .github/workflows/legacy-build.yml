@@ -1,4 +1,4 @@
-name: Legacy SDK Build
+name: SDK Builds
 
 on:
   workflow_dispatch:
@@ -8,8 +8,18 @@ permissions:
 
 jobs:
   build:
-    name: Build with Xcode 16.4
-    runs-on: macos-15
+    name: ${{ matrix.name }}
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: Legacy SDK (macOS 15 / Xcode 16.4)
+            runner: macos-15
+            artifact_suffix: macos15-sdk15
+          - name: Modern SDK (macOS 27 / Xcode 27)
+            runner: xcode-27
+            artifact_suffix: macos27-sdk27
 
     steps:
       - name: Checkout
@@ -17,6 +27,8 @@ jobs:
 
       - name: Show toolchain
         run: |
+          sw_vers
+          xcode-select -p
           xcodebuild -version
           xcodebuild -showsdks | sed -n '/macOS SDKs:/,/tvOS SDKs:/p'
 
@@ -25,10 +37,10 @@ jobs:
         run: |
           set -euo pipefail
 
-          build_root="$RUNNER_TEMP/pipetka-legacy-build"
+          build_root="$RUNNER_TEMP/pipetka-${{ matrix.artifact_suffix }}"
           derived_data_path="$build_root/derived-data"
           app_path="$derived_data_path/Build/Products/Release/Pipetka.app"
-          artifact_name="Pipetka-${GITHUB_SHA::7}-legacy-sdk.zip"
+          artifact_name="Pipetka-${GITHUB_SHA::7}-${{ matrix.artifact_suffix }}.zip"
 
           xcodebuild \
             -quiet \
@@ -51,7 +63,7 @@ jobs:
       - name: Upload app artifact
         uses: actions/upload-artifact@v4
         with:
-          name: Pipetka-legacy-sdk-${{ github.sha }}
+          name: Pipetka-${{ matrix.artifact_suffix }}-${{ github.sha }}
           path: ${{ runner.temp }}/${{ env.ARTIFACT_NAME }}
           if-no-files-found: error
           retention-days: 14
