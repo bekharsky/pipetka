@@ -1,12 +1,9 @@
 import AppKit
 import SwiftUI
 
-private final class ToolbarHitAreaView: NSView {
-  weak var targetButton: NSButton?
-
-  override func hitTest(_ point: NSPoint) -> NSView? {
-    guard bounds.contains(point) else { return nil }
-    return targetButton
+private final class PipetkaToolbarButton: NSButton {
+  override var intrinsicContentSize: NSSize {
+    NSSize(width: 34, height: 30)
   }
 }
 
@@ -26,7 +23,7 @@ final class MainWindow: NSWindow, NSToolbarDelegate {
   private weak var pinToolbarItem: NSToolbarItem?
   private weak var countLabel: NSTextField?
   private var titleAccessoryController: NSTitlebarAccessoryViewController?
-  private weak var pinToolbarButton: NSButton?
+  private weak var pinToolbarButton: PipetkaToolbarButton?
 
   override var canBecomeKey: Bool { true }
   override var canBecomeMain: Bool { true }
@@ -135,8 +132,8 @@ final class MainWindow: NSWindow, NSToolbarDelegate {
   private func setupToolbar() {
     let toolbar = NSToolbar(identifier: ToolbarIdentifier.main)
     toolbar.delegate = self
-    // Each custom toolbar view already draws its own label. Asking AppKit to
-    // draw labels as well produces a duplicate label on macOS 26.
+    // The groups provide their own compact controls; AppKit should not add a
+    // second row of labels around them.
     toolbar.displayMode = .iconOnly
     toolbar.sizeMode = .regular
     toolbar.allowsUserCustomization = false
@@ -201,82 +198,56 @@ final class MainWindow: NSWindow, NSToolbarDelegate {
     item.image = toolbarImage(systemName: symbolName, tintColor: tintColor)
     item.visibilityPriority = .high
 
-    if #available(macOS 26.0, *) {
-      item.target = self
-      item.action = action
-
-      if identifier == ToolbarIdentifier.onTop {
-        pinToolbarItem = item
-      }
-
-      syncToolbarState()
-
-      return item
-    }
-
-    let container = makeToolbarControl(
+    let button = makeToolbarButton(
       label: label,
       symbolName: symbolName,
       action: action,
       tintColor: tintColor
     )
 
-    item.view = container
+    // An NSToolbarItem with an NSButton view is still a real toolbar item,
+    // while the AppKit button supplies the visible hit target and bezel that
+    // automatic icon-only items omit in the macOS 26 toolbar appearance.
+    item.view = button
 
     if identifier == ToolbarIdentifier.onTop {
       pinToolbarItem = item
+      pinToolbarButton = button
     }
 
+    syncToolbarState()
     return item
   }
 
-  private func makeToolbarControl(
+  private func makeToolbarButton(
     label: String,
     symbolName: String,
     action: Selector,
     tintColor: NSColor? = nil
-  ) -> ToolbarHitAreaView {
-    let button = NSButton(image: toolbarImage(systemName: symbolName, tintColor: tintColor) ?? NSImage(), target: self, action: action)
-    button.bezelStyle = .texturedRounded
+  ) -> PipetkaToolbarButton {
+    let button = PipetkaToolbarButton(
+      image: toolbarImage(systemName: symbolName, tintColor: tintColor) ?? NSImage(),
+      target: self,
+      action: action
+    )
+
+    // Use the standard AppKit push-button bezel here. The new glass bezel is
+    // intentionally more subtle and falls back to an icon-only appearance in
+    // an inactive toolbar, which is exactly the affordance we are avoiding.
+    button.bezelStyle = .push
     button.controlSize = .regular
     button.isBordered = true
     button.imagePosition = .imageOnly
-    button.translatesAutoresizingMaskIntoConstraints = false
     button.setButtonType(.momentaryPushIn)
-    button.imageScaling = .scaleNone
-
-    let titleLabel = NSTextField(labelWithString: label)
-    titleLabel.font = .systemFont(ofSize: 10, weight: .regular)
-    titleLabel.textColor = .secondaryLabelColor
-    titleLabel.alignment = .center
-    titleLabel.translatesAutoresizingMaskIntoConstraints = false
-
-    let stack = NSStackView(views: [button, titleLabel])
-    stack.orientation = .vertical
-    stack.alignment = .centerX
-    stack.spacing = 1
-    stack.edgeInsets = NSEdgeInsets(top: 0, left: 0, bottom: 0, right: 0)
-
-    let container = ToolbarHitAreaView(frame: NSRect(x: 0, y: 0, width: 50, height: 40))
-    container.translatesAutoresizingMaskIntoConstraints = false
-    container.targetButton = button
-    stack.translatesAutoresizingMaskIntoConstraints = false
-    container.addSubview(stack)
-
-    NSLayoutConstraint.activate([
-      container.widthAnchor.constraint(equalToConstant: 50),
-      container.heightAnchor.constraint(equalToConstant: 40),
-      stack.centerXAnchor.constraint(equalTo: container.centerXAnchor),
-      stack.centerYAnchor.constraint(equalTo: container.centerYAnchor),
-      button.widthAnchor.constraint(equalToConstant: 44),
-      button.heightAnchor.constraint(equalToConstant: 32)
-    ])
-
-    if label == "On Top" {
-      pinToolbarButton = button
+    button.imageScaling = .scaleProportionallyDown
+    button.toolTip = label
+    button.setAccessibilityLabel(label)
+    if tintColor != nil {
+      button.bezelColor = NSColor.controlAccentColor.withAlphaComponent(0.22)
     }
+    button.setFrameSize(NSSize(width: 34, height: 30))
 
-    return container
+    return button
   }
 
   func toolbarAllowedItemIdentifiers(_ toolbar: NSToolbar) -> [NSToolbarItem.Identifier] {
@@ -344,6 +315,8 @@ final class MainWindow: NSWindow, NSToolbarDelegate {
     group.label = "Pick"
     group.paletteLabel = "Pick"
     group.toolTip = "Pick"
+    group.controlRepresentation = .expanded
+    group.selectionMode = .momentary
     group.visibilityPriority = .high
     return group
   }
@@ -353,7 +326,7 @@ final class MainWindow: NSWindow, NSToolbarDelegate {
     group.subitems = [
       makeToolbarItem(
         identifier: ToolbarIdentifier.onTop,
-        label: "On Top",
+        label: store.alwaysOnTop ? "Disable On Top" : "Enable On Top",
         symbolName: store.alwaysOnTop ? "pin.fill" : "pin",
         action: #selector(handleToolbarToggleOnTop(_:))
       ),
@@ -373,8 +346,11 @@ final class MainWindow: NSWindow, NSToolbarDelegate {
     group.label = "Window Controls"
     group.paletteLabel = "Window Controls"
     group.toolTip = "Window Controls"
+    group.controlRepresentation = .expanded
     group.selectionMode = .momentary
     group.visibilityPriority = .high
+    pinToolbarItem = group.subitems.first
+    syncToolbarState()
     return group
   }
 }
