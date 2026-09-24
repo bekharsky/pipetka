@@ -242,9 +242,8 @@ final class MainWindow: NSWindow, NSToolbarDelegate {
     button.imageScaling = .scaleProportionallyDown
     button.toolTip = label
     button.setAccessibilityLabel(label)
-    if tintColor != nil {
-      button.bezelColor = NSColor.controlAccentColor.withAlphaComponent(0.22)
-    }
+    // Tint the symbol, not the button bezel; the latter becomes a solid
+    // accent block on the macOS 15 SDK / macOS 27 runtime combination.
     button.setFrameSize(NSSize(width: 34, height: 30))
 
     return button
