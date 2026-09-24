@@ -165,8 +165,8 @@ Xcode Cloud should use a separate workflow whose start condition is a branch cha
 
 For non-release builds, run the manually triggered `SDK Builds` workflow. It builds both modern variants in parallel and uploads two unsigned ZIPs as Actions artifacts without creating a GitHub Release:
 
-- `macos-26` — macOS 26 / Xcode 26 SDK, with a macOS 15 deployment target.
-- `xcode-27` — macOS 27 / Xcode 27 SDK, with a macOS 15 deployment target and the native macOS 27 tab picker.
+- `macos-26` — macOS 26 / Xcode 26 SDK, with a macOS 13 deployment target (and therefore support for macOS 15).
+- `xcode-27` — macOS 27 / Xcode 27 SDK, with a macOS 13 deployment target (and therefore support for macOS 15) plus the native macOS 27 tab picker.
 
 Both artifacts are universal (`arm64` and `x86_64`) and can run on macOS 15 or newer. The `xcode-27` runner is selected explicitly instead of using a moving `macos-latest` label, so the modern artifact stays tied to the macOS 27 toolchain.
 

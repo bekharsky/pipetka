@@ -17,11 +17,11 @@ jobs:
           - name: Compatibility SDK (macOS 26 / Xcode 26)
             runner: macos-26
             artifact_suffix: macos26-sdk26
-            deployment_target: "15.0"
+            deployment_target: "13.0"
           - name: Modern SDK (macOS 27 / Xcode 27)
             runner: xcode-27
             artifact_suffix: macos27-sdk27
-            deployment_target: "15.0"
+            deployment_target: "13.0"
 
     steps:
       - name: Checkout
