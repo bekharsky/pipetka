@@ -1,0 +1,72 @@
+name: SDK Builds
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: ${{ matrix.name }}
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: Compatibility SDK (macOS 26 / Xcode 26)
+            runner: macos-26
+            artifact_suffix: macos26-sdk26
+            deployment_target: "13.0"
+          - name: Modern SDK (macOS 27 / Xcode 27)
+            runner: xcode-27
+            artifact_suffix: macos27-sdk27
+            deployment_target: "13.0"
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Show toolchain
+        run: |
+          sw_vers
+          xcode-select -p
+          xcodebuild -version
+          xcodebuild -showsdks | sed -n '/macOS SDKs:/,/tvOS SDKs:/p'
+
+      - name: Build unsigned Release app
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          build_root="$RUNNER_TEMP/pipetka-${{ matrix.artifact_suffix }}"
+          derived_data_path="$build_root/derived-data"
+          app_path="$derived_data_path/Build/Products/Release/Pipetka.app"
+          artifact_name="Pipetka-${GITHUB_SHA::7}-${{ matrix.artifact_suffix }}.zip"
+
+          xcodebuild \
+            -quiet \
+            -project Pipetka.xcodeproj \
+            -scheme Pipetka \
+            -configuration Release \
+            -sdk macosx \
+            -derivedDataPath "$derived_data_path" \
+            MACOSX_DEPLOYMENT_TARGET="${{ matrix.deployment_target }}" \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            build
+
+          test -d "$app_path"
+          ditto -c -k --sequesterRsrc --keepParent \
+            "$app_path" \
+            "$RUNNER_TEMP/$artifact_name"
+
+          echo "ARTIFACT_NAME=$artifact_name" >> "$GITHUB_ENV"
+
+      - name: Upload app artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Pipetka-${{ matrix.artifact_suffix }}-${{ github.sha }}
+          path: ${{ runner.temp }}/${{ env.ARTIFACT_NAME }}
+          if-no-files-found: error
+          retention-days: 14

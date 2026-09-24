@@ -1,12 +1,9 @@
 import AppKit
 import SwiftUI
 
-private final class ToolbarHitAreaView: NSView {
-  weak var targetButton: NSButton?
-
-  override func hitTest(_ point: NSPoint) -> NSView? {
-    guard bounds.contains(point) else { return nil }
-    return targetButton
+private final class PipetkaToolbarButton: NSButton {
+  override var intrinsicContentSize: NSSize {
+    NSSize(width: 34, height: 30)
   }
 }
 
@@ -17,6 +14,7 @@ final class MainWindow: NSWindow, NSToolbarDelegate {
     static let importItem = NSToolbarItem.Identifier("com.kharion.pipetka.toolbar.import")
     static let pick = NSToolbarItem.Identifier("com.kharion.pipetka.toolbar.pick")
     static let pickGroup = NSToolbarItem.Identifier("com.kharion.pipetka.toolbar.pick-group")
+    static let utilityGroup = NSToolbarItem.Identifier("com.kharion.pipetka.toolbar.utility-group")
     static let clearHistory = NSToolbarItem.Identifier("com.kharion.pipetka.toolbar.clear-history")
     static let spacer = NSToolbarItem.Identifier.flexibleSpace
   }
@@ -25,7 +23,7 @@ final class MainWindow: NSWindow, NSToolbarDelegate {
   private weak var pinToolbarItem: NSToolbarItem?
   private weak var countLabel: NSTextField?
   private var titleAccessoryController: NSTitlebarAccessoryViewController?
-  private weak var pinToolbarButton: NSButton?
+  private weak var pinToolbarButton: PipetkaToolbarButton?
 
   override var canBecomeKey: Bool { true }
   override var canBecomeMain: Bool { true }
@@ -114,7 +112,12 @@ final class MainWindow: NSWindow, NSToolbarDelegate {
       guard let image = NSImage(systemSymbolName: systemName, accessibilityDescription: nil) else {
         return nil
       }
-      let config = NSImage.SymbolConfiguration(pointSize: 14, weight: .regular)
+      var config = NSImage.SymbolConfiguration(pointSize: 14, weight: .regular)
+      if let tintColor {
+        config = config.applying(
+          NSImage.SymbolConfiguration(paletteColors: [tintColor])
+        )
+      }
       configuredImage = image.withSymbolConfiguration(config) ?? image
     } else {
       guard let image = PlatformSymbol.image(systemName: systemName) else {
@@ -123,25 +126,14 @@ final class MainWindow: NSWindow, NSToolbarDelegate {
       configuredImage = image
     }
 
-    guard let tintColor else {
-      return configuredImage
-    }
-
-    let tintedImage = configuredImage.copy() as? NSImage ?? configuredImage
-    tintedImage.lockFocus()
-    defer { tintedImage.unlockFocus() }
-
-    tintColor.set()
-    NSRect(origin: .zero, size: tintedImage.size).fill(using: .sourceAtop)
-    tintedImage.isTemplate = false
-    return tintedImage
+    return configuredImage
   }
 
   private func setupToolbar() {
     let toolbar = NSToolbar(identifier: ToolbarIdentifier.main)
     toolbar.delegate = self
-    // Each custom toolbar view already draws its own label. Asking AppKit to
-    // draw labels as well produces a duplicate label on macOS 26.
+    // The groups provide their own compact controls; AppKit should not add a
+    // second row of labels around them.
     toolbar.displayMode = .iconOnly
     toolbar.sizeMode = .regular
     toolbar.allowsUserCustomization = false
@@ -206,100 +198,69 @@ final class MainWindow: NSWindow, NSToolbarDelegate {
     item.image = toolbarImage(systemName: symbolName, tintColor: tintColor)
     item.visibilityPriority = .high
 
-    if #available(macOS 26.0, *) {
-      item.target = self
-      item.action = action
-
-      if identifier == ToolbarIdentifier.onTop {
-        pinToolbarItem = item
-      }
-
-      syncToolbarState()
-
-      return item
-    }
-
-    let container = makeToolbarControl(
+    let button = makeToolbarButton(
       label: label,
       symbolName: symbolName,
       action: action,
       tintColor: tintColor
     )
 
-    item.view = container
+    // An NSToolbarItem with an NSButton view is still a real toolbar item,
+    // while the AppKit button supplies the visible hit target and bezel that
+    // automatic icon-only items omit in the macOS 26 toolbar appearance.
+    item.view = button
 
     if identifier == ToolbarIdentifier.onTop {
       pinToolbarItem = item
+      pinToolbarButton = button
     }
 
+    syncToolbarState()
     return item
   }
 
-  private func makeToolbarControl(
+  private func makeToolbarButton(
     label: String,
     symbolName: String,
     action: Selector,
     tintColor: NSColor? = nil
-  ) -> ToolbarHitAreaView {
-    let button = NSButton(image: toolbarImage(systemName: symbolName, tintColor: tintColor) ?? NSImage(), target: self, action: action)
-    button.bezelStyle = .texturedRounded
+  ) -> PipetkaToolbarButton {
+    let button = PipetkaToolbarButton(
+      image: toolbarImage(systemName: symbolName, tintColor: tintColor) ?? NSImage(),
+      target: self,
+      action: action
+    )
+
+    // Use the standard AppKit push-button bezel here. The new glass bezel is
+    // intentionally more subtle and falls back to an icon-only appearance in
+    // an inactive toolbar, which is exactly the affordance we are avoiding.
+    button.bezelStyle = .push
     button.controlSize = .regular
     button.isBordered = true
     button.imagePosition = .imageOnly
-    button.translatesAutoresizingMaskIntoConstraints = false
     button.setButtonType(.momentaryPushIn)
-    button.imageScaling = .scaleNone
+    button.imageScaling = .scaleProportionallyDown
+    button.toolTip = label
+    button.setAccessibilityLabel(label)
+    // Tint the symbol, not the button bezel; the latter becomes a solid
+    // accent block on the macOS 15 SDK / macOS 27 runtime combination.
+    button.setFrameSize(NSSize(width: 34, height: 30))
 
-    let titleLabel = NSTextField(labelWithString: label)
-    titleLabel.font = .systemFont(ofSize: 10, weight: .regular)
-    titleLabel.textColor = .secondaryLabelColor
-    titleLabel.alignment = .center
-    titleLabel.translatesAutoresizingMaskIntoConstraints = false
-
-    let stack = NSStackView(views: [button, titleLabel])
-    stack.orientation = .vertical
-    stack.alignment = .centerX
-    stack.spacing = 1
-    stack.edgeInsets = NSEdgeInsets(top: 0, left: 0, bottom: 0, right: 0)
-
-    let container = ToolbarHitAreaView(frame: NSRect(x: 0, y: 0, width: 50, height: 40))
-    container.translatesAutoresizingMaskIntoConstraints = false
-    container.targetButton = button
-    stack.translatesAutoresizingMaskIntoConstraints = false
-    container.addSubview(stack)
-
-    NSLayoutConstraint.activate([
-      container.widthAnchor.constraint(equalToConstant: 50),
-      container.heightAnchor.constraint(equalToConstant: 40),
-      stack.centerXAnchor.constraint(equalTo: container.centerXAnchor),
-      stack.centerYAnchor.constraint(equalTo: container.centerYAnchor),
-      button.widthAnchor.constraint(equalToConstant: 44),
-      button.heightAnchor.constraint(equalToConstant: 32)
-    ])
-
-    if label == "On Top" {
-      pinToolbarButton = button
-    }
-
-    return container
+    return button
   }
 
   func toolbarAllowedItemIdentifiers(_ toolbar: NSToolbar) -> [NSToolbarItem.Identifier] {
     [
       ToolbarIdentifier.spacer,
-      ToolbarIdentifier.onTop,
-      ToolbarIdentifier.importItem,
-      ToolbarIdentifier.pickGroup,
-      ToolbarIdentifier.clearHistory
+      ToolbarIdentifier.utilityGroup,
+      ToolbarIdentifier.pickGroup
     ]
   }
 
   func toolbarDefaultItemIdentifiers(_ toolbar: NSToolbar) -> [NSToolbarItem.Identifier] {
     [
       ToolbarIdentifier.spacer,
-      ToolbarIdentifier.onTop,
-      ToolbarIdentifier.importItem,
-      ToolbarIdentifier.clearHistory,
+      ToolbarIdentifier.utilityGroup,
       ToolbarIdentifier.pickGroup
     ]
   }
@@ -310,6 +271,8 @@ final class MainWindow: NSWindow, NSToolbarDelegate {
     willBeInsertedIntoToolbar flag: Bool
   ) -> NSToolbarItem? {
     switch itemIdentifier {
+    case ToolbarIdentifier.utilityGroup:
+      return makeUtilityToolbarGroup()
     case ToolbarIdentifier.pickGroup:
       return makePickToolbarGroup()
     case ToolbarIdentifier.onTop:
@@ -342,7 +305,7 @@ final class MainWindow: NSWindow, NSToolbarDelegate {
     let pickItem = makeToolbarItem(
       identifier: ToolbarIdentifier.pick,
       label: "Pick",
-      symbolName: "eyedropper.full",
+      symbolName: "eyedropper",
       action: #selector(handleToolbarPick(_:)),
       tintColor: .controlAccentColor
     )
@@ -351,7 +314,42 @@ final class MainWindow: NSWindow, NSToolbarDelegate {
     group.label = "Pick"
     group.paletteLabel = "Pick"
     group.toolTip = "Pick"
+    group.controlRepresentation = .expanded
+    group.selectionMode = .momentary
     group.visibilityPriority = .high
+    return group
+  }
+
+  private func makeUtilityToolbarGroup() -> NSToolbarItemGroup {
+    let group = NSToolbarItemGroup(itemIdentifier: ToolbarIdentifier.utilityGroup)
+    group.subitems = [
+      makeToolbarItem(
+        identifier: ToolbarIdentifier.onTop,
+        label: store.alwaysOnTop ? "Disable On Top" : "Enable On Top",
+        symbolName: store.alwaysOnTop ? "pin.fill" : "pin",
+        action: #selector(handleToolbarToggleOnTop(_:))
+      ),
+      makeToolbarItem(
+        identifier: ToolbarIdentifier.importItem,
+        label: "Import",
+        symbolName: "folder.badge.plus",
+        action: #selector(handleToolbarImport(_:))
+      ),
+      makeToolbarItem(
+        identifier: ToolbarIdentifier.clearHistory,
+        label: "Clear History",
+        symbolName: "eraser",
+        action: #selector(handleToolbarClearHistory(_:))
+      )
+    ]
+    group.label = "Window Controls"
+    group.paletteLabel = "Window Controls"
+    group.toolTip = "Window Controls"
+    group.controlRepresentation = .expanded
+    group.selectionMode = .momentary
+    group.visibilityPriority = .high
+    pinToolbarItem = group.subitems.first
+    syncToolbarState()
     return group
   }
 }

@@ -81,7 +81,7 @@ osascript -e "do shell script \"killall Pipetka 2>/dev/null || true; rm -rf /App
 open -a /Applications/Pipetka.app
 ```
 
-Pipetka requests Screen Recording only when `Pick Color` is used, not on app launch. If the permission database needs to be cleared while debugging, reset only this app's entry and then relaunch it:
+Pipetka requests Screen Recording only when `Pick Color` is used, not on app launch. The first `Pick Color` shows the macOS system request. If it is denied, Pipetka returns to the app without opening a second dialog; a subsequent `Pick Color` shows Pipetka's own explanation and System Settings shortcut without repeating the system request. If the permission database needs to be cleared while debugging, reset only this app's entry and then relaunch it:
 
 ```bash
 tccutil reset ScreenCapture com.kharion.pipetka
@@ -162,6 +162,13 @@ The GitHub Release workflow is intentionally independent from the App Store buil
 3. GitHub Actions builds, notarizes, and publishes the GitHub Release for that tag.
 
 Xcode Cloud should use a separate workflow whose start condition is a branch change on `release`. Disable its start conditions for `main` and pull requests if App Store builds should not run during ordinary development. To make an App Store build, merge the desired `main` state into `release` and push `release`; that push starts Xcode Cloud only and does not start the GitHub Release workflow.
+
+For non-release builds, run the manually triggered `SDK Builds` workflow. It builds both modern variants in parallel and uploads two unsigned ZIPs as Actions artifacts without creating a GitHub Release:
+
+- `macos-26` — macOS 26 / Xcode 26 SDK, with a macOS 13 deployment target (and therefore support for macOS 15).
+- `xcode-27` — macOS 27 / Xcode 27 SDK, with a macOS 13 deployment target (and therefore support for macOS 15) plus the native macOS 27 tab picker.
+
+Both artifacts are universal (`arm64` and `x86_64`) and can run on macOS 15 or newer. The `xcode-27` runner is selected explicitly instead of using a moving `macos-latest` label, so the modern artifact stays tied to the macOS 27 toolchain.
 
 While moving the picker, the lens uses the fast SDR sample only. HDR is sampled once on confirmation and preserved in CSS profile and SwiftUI output. The CSS profile selector can emit extended sRGB, Display P3, Rec. 2020, or Rec. 2100 PQ/HLG/Linear. Components below 0 or above 1 are valid extended-range/out-of-gamut values in the linear and wide-gamut forms; PQ and HLG encode into their nominal display range. After confirmation, history swatches keep the HDR color when the display supports it, while HEX/RGB/HSL show a tone-mapped SDR approximation marked as `HDR`. If the HDR service does not answer promptly or returns an invalid buffer, the picker safely keeps the SDR sample instead of hanging or storing corrupted components.
 
