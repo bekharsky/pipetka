@@ -44,6 +44,8 @@ public final class ScreenColorPicker {
   private var lensPanel: PickerLensPanel?
   private var lensView: PickerLensView?
   private var selectionPoint: CGPoint?
+  private var lastDisplayedSample: PixelSample?
+  private var lastDisplayedPoint: CGPoint?
   private var samplingGeneration = 0
 
   public init(
@@ -164,7 +166,8 @@ public final class ScreenColorPicker {
 
   fileprivate func confirmSelection(at point: CGPoint) {
     let generation = samplingGeneration
-    pixelSampler.sample(at: point, requiresHDR: true) { [weak self] sample in
+    let preview = lastDisplayedPoint == point ? lastDisplayedSample : nil
+    pixelSampler.sample(at: point, requiresHDR: true, preview: preview) { [weak self] sample in
       guard let self, let sample, generation == self.samplingGeneration else {
         return
       }
@@ -173,6 +176,8 @@ public final class ScreenColorPicker {
   }
 
   private func display(sample: PixelSample, at point: CGPoint) {
+    lastDisplayedSample = sample
+    lastDisplayedPoint = point
     lensView?.sample = sample
     lensView?.mousePoint = point
     lensView?.needsDisplay = true
@@ -198,6 +203,8 @@ public final class ScreenColorPicker {
     lensPanel = nil
     lensView = nil
     selectionPoint = nil
+    lastDisplayedSample = nil
+    lastDisplayedPoint = nil
     NSCursor.pop()
   }
 
@@ -598,6 +605,13 @@ private final class PixelSampler {
 
       hdrCapture.sample(at: point, on: screen) { color in
         guard let color, Self.isUsableHDRColor(color) else {
+          completion(preview)
+          return
+        }
+
+        // The legacy sample is exactly what the user sees in the lens. Keep it
+        // for SDR and wide-gamut colors; use ScreenCaptureKit only for real HDR.
+        guard ColorUtilities.isHDR(color) else {
           completion(preview)
           return
         }

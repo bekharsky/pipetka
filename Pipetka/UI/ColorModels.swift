@@ -132,6 +132,20 @@ struct PickedColor: Identifiable {
   let color: NSColor
   let previewImage: NSImage?
   let pickedAt: Date
+  let isHDR: Bool
+  let isWideGamut: Bool
+
+  init(color: NSColor, previewImage: NSImage?, pickedAt: Date) {
+    self.color = color
+    self.previewImage = previewImage
+    self.pickedAt = pickedAt
+    isHDR = ColorUtilities.isHDR(color)
+    isWideGamut = ColorUtilities.isWideGamut(color)
+  }
+
+  var hasExtendedColor: Bool {
+    isHDR || isWideGamut
+  }
 
   var extendedSRGBColor: NSColor {
     color.usingColorSpace(.extendedSRGB) ?? color
@@ -142,14 +156,14 @@ struct PickedColor: Identifiable {
   }
 
   var displayColor: NSColor {
-    ColorUtilities.displayColor(from: extendedSRGBColor)
+    ColorUtilities.displayColor(from: color)
   }
 
   /// The color used by the small UI swatches. Keep extended values intact so
   /// AppKit can render them on an HDR display; the SDR tone-mapped color is
   /// still used when the source is an ordinary color.
   var previewColor: NSColor {
-    isExtendedRange ? color : displayColor
+    hasExtendedColor ? color : displayColor
   }
 
   var extendedComponents: ExtendedSRGBComponents? {
@@ -178,7 +192,9 @@ struct PickedColor: Identifiable {
   }
 
   var displayRGB: String {
-    "rgb(\(ColorUtilities.byteComponent(displayColor.redComponent)), \(ColorUtilities.byteComponent(displayColor.greenComponent)), \(ColorUtilities.byteComponent(displayColor.blueComponent)))"
+    let components = ColorUtilities.extendedSRGBComponents(from: displayColor)
+      ?? ExtendedSRGBComponents(red: 0, green: 0, blue: 0)
+    return "rgb(\(ColorUtilities.byteComponent(components.red)), \(ColorUtilities.byteComponent(components.green)), \(ColorUtilities.byteComponent(components.blue)))"
   }
 }
 
@@ -222,23 +238,23 @@ func formatColor(
 ) -> String {
   switch format {
   case .hex:
-    let value = item.isExtendedRange
+    let value = item.hasExtendedColor
       ? item.displayHex
       : String(format: "#%02X%02X%02X", item.red, item.green, item.blue)
-    return item.isExtendedRange ? "HDR \(value) (use \(cssColorSpace.tabLabel))" : value
+    return value
   case .rgb:
-    let value = item.isExtendedRange
+    let value = item.hasExtendedColor
       ? item.displayRGB
       : "rgb(\(item.red), \(item.green), \(item.blue))"
-    return item.isExtendedRange ? "HDR \(value) (use \(cssColorSpace.tabLabel))" : value
+    return value
   case .hsl:
     let value = formatHsl(item)
-    return item.isExtendedRange ? "HDR \(value) (use \(cssColorSpace.tabLabel))" : value
+    return value
   case .extendedRGB:
     return formatCSSColor(item, colorSpace: cssColorSpace)
   case .swiftUI:
     let components = item.extendedComponents ?? ExtendedSRGBComponents(red: 0, green: 0, blue: 0)
-    if item.isExtendedRange {
+    if item.hasExtendedColor {
       return String(
         format: "Color(nsColor: NSColor(colorSpace: .extendedSRGB, components: [%.3f, %.3f, %.3f, 1.000], count: 4))",
         Double(components.red),
@@ -319,10 +335,11 @@ func displayFormatColor(
 }
 
 func formatHsl(_ item: PickedColor) -> String {
-  let displayColor = item.displayColor
-  let red = Double(ColorUtilities.clampedUnit(displayColor.redComponent))
-  let green = Double(ColorUtilities.clampedUnit(displayColor.greenComponent))
-  let blue = Double(ColorUtilities.clampedUnit(displayColor.blueComponent))
+  let components = ColorUtilities.extendedSRGBComponents(from: item.displayColor)
+    ?? ExtendedSRGBComponents(red: 0, green: 0, blue: 0)
+  let red = Double(ColorUtilities.clampedUnit(components.red))
+  let green = Double(ColorUtilities.clampedUnit(components.green))
+  let blue = Double(ColorUtilities.clampedUnit(components.blue))
   let maxValue = max(red, max(green, blue))
   let minValue = min(red, min(green, blue))
   let delta = maxValue - minValue
@@ -353,20 +370,11 @@ func namedColorMatch(for item: PickedColor) -> NamedColorMatch {
 }
 
 func namedColorName(for item: PickedColor) -> String {
-  if item.isExtendedRange {
-    return "HDR color"
-  }
   return namedColorMatch(for: item).name
 }
 
-func historySubtitle(
-  for item: PickedColor,
-  cssColorSpace: CSSColorSpace = .sRGB
-) -> String {
-  let value = item.isExtendedRange
-    ? formatColor(item, format: .extendedRGB, cssColorSpace: cssColorSpace)
-    : formatColor(item, format: .hex)
-  return item.isExtendedRange ? "HDR • \(value)" : "\(namedColorName(for: item)) • \(value)"
+func historySubtitle(for item: PickedColor) -> String {
+  namedColorName(for: item)
 }
 
 func recentPickMenuText(
@@ -430,7 +438,7 @@ private func cssExportValue(
   for item: PickedColor,
   cssColorSpace: CSSColorSpace
 ) -> String {
-  item.isExtendedRange
+  item.hasExtendedColor
     ? formatColor(item, format: .extendedRGB, cssColorSpace: cssColorSpace)
     : formatColor(item, format: .hex)
 }
