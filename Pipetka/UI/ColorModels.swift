@@ -370,11 +370,6 @@ func namedColorMatch(for item: PickedColor) -> NamedColorMatch {
 }
 
 func namedColorName(for item: PickedColor) -> String {
-  // Clamping a strongly out-of-gamut color to sRGB can turn it into #000000,
-  // which is not a useful name for the actual color shown in the P3 swatch.
-  if item.isWideGamut, item.red == 0, item.green == 0, item.blue == 0 {
-    return "P3 color"
-  }
   return namedColorMatch(for: item).name
 }
 
