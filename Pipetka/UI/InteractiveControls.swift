@@ -92,17 +92,22 @@ struct HistoryRowButton: View {
                 .stroke(Color.black.opacity(0.08), lineWidth: 1)
             )
 
-          Text(
-            historySubtitle(
-              for: item,
-              cssColorSpace: cssColorSpace
-            )
-          )
+          Text(historySubtitle(for: item))
             .font(.system(size: 11))
             .foregroundColor(.secondary)
-            .lineLimit(2)
+            .lineLimit(1)
             .fixedSize(horizontal: false, vertical: true)
-            .frame(maxWidth: .infinity, alignment: .leading)
+
+          gamutBadge
+
+          if item.isHDR {
+            Text("HDR")
+              .font(.system(size: 10, weight: .semibold))
+              .foregroundColor(.orange)
+              .padding(.horizontal, 6)
+              .padding(.vertical, 2)
+              .background(Color.orange.opacity(0.10), in: Capsule())
+          }
         }
       }
       .padding(.trailing, 30)
@@ -126,9 +131,22 @@ struct HistoryRowButton: View {
     .frame(maxWidth: .infinity, alignment: .leading)
   }
 
+  private var gamutBadge: some View {
+    let isWideGamut = item.isWideGamut
+    return Text(isWideGamut ? "P3" : "sRGB")
+      .font(.system(size: 10, weight: .semibold))
+      .foregroundColor(isWideGamut ? Color.accentColor : Color.secondary)
+      .padding(.horizontal, 6)
+      .padding(.vertical, 2)
+      .background(
+        isWideGamut ? Color.accentColor.opacity(0.10) : Color.black.opacity(0.05),
+        in: Capsule()
+      )
+  }
+
   @ViewBuilder
   private var preview: some View {
-    if item.isExtendedRange {
+    if item.hasExtendedColor {
       RoundedRectangle(cornerRadius: 10)
         .fill(PlatformColor.color(from: item.previewColor))
         .frame(width: 46, height: 46)
@@ -203,6 +221,7 @@ private struct HistoryRowControl: NSViewRepresentable {
     context.coordinator.onActivate = onActivate
     button.title = ""
     button.setAccessibilityLabel(accessibilityLabel)
+    button.toolTip = "Copy \(accessibilityLabel)"
   }
 
   final class Coordinator: NSObject {

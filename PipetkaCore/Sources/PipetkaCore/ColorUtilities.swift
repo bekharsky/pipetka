@@ -17,9 +17,17 @@ public struct ColorComponents: Equatable {
 public typealias ExtendedSRGBComponents = ColorComponents
 
 public enum ColorUtilities {
-  /// The extended Display P3 space used by ScreenCaptureKit's HDR screenshot preset.
+  /// The linear, extended Display P3 space used by ScreenCaptureKit's HDR screenshot preset.
   public static let extendedDisplayP3ColorSpace: NSColorSpace? = {
     guard let cgColorSpace = CGColorSpace(name: CGColorSpace.extendedDisplayP3) else {
+      return nil
+    }
+    return NSColorSpace(cgColorSpace: cgColorSpace)
+  }()
+
+  /// Linear extended sRGB is used to test whether a color falls outside the sRGB gamut.
+  private static let extendedLinearSRGBColorSpace: NSColorSpace? = {
+    guard let cgColorSpace = CGColorSpace(name: CGColorSpace.extendedLinearSRGB) else {
       return nil
     }
     return NSColorSpace(cgColorSpace: cgColorSpace)
@@ -65,6 +73,35 @@ public enum ColorUtilities {
     let tolerance: CGFloat = 0.0001
     return [components.red, components.green, components.blue].contains {
       !$0.isFinite || $0 < -tolerance || $0 > 1 + tolerance
+    }
+  }
+
+  /// True when the color contains component values above SDR reference white in
+  /// the linear Display P3 space used by the screen-capture pipeline.
+  /// Negative sRGB components alone do not indicate HDR; they usually indicate
+  /// a color outside the sRGB gamut.
+  public static func isHDR(_ color: NSColor) -> Bool {
+    guard let components = extendedDisplayP3Components(from: color) else {
+      return false
+    }
+    let tolerance: CGFloat = 0.001
+    return [components.red, components.green, components.blue].contains {
+      $0.isFinite && $0 > 1 + tolerance
+    }
+  }
+
+  /// True when the color's chromaticity lies outside the sRGB gamut.
+  /// Linear RGB conversion preserves the sign of out-of-gamut channels, while
+  /// avoiding mistaking HDR brightness above 1 for a gamut difference.
+  public static func isWideGamut(_ color: NSColor) -> Bool {
+    guard let extendedLinearSRGBColorSpace,
+          let components = components(from: color, in: extendedLinearSRGBColorSpace)
+    else {
+      return false
+    }
+    let tolerance: CGFloat = 0.001
+    return [components.red, components.green, components.blue].contains {
+      $0 < -tolerance
     }
   }
 
@@ -326,10 +363,14 @@ public enum ColorUtilities {
     return value < 0 ? -root : root
   }
 
-  /// Returns an SDR display color while preserving the hue of extended-range values.
-  /// The original extended components remain available for export and copying.
+  /// Returns the original color for SDR content, preserving its source gamut.
+  /// HDR content is tone-mapped in linear Display P3; the original components
+  /// remain available for export and copying.
   public static func displayColor(from color: NSColor) -> NSColor {
-    guard let components = extendedSRGBComponents(from: color) else {
+    guard isHDR(color),
+          let components = extendedDisplayP3Components(from: color),
+          let extendedDisplayP3ColorSpace
+    else {
       return color
     }
 
@@ -339,10 +380,14 @@ public enum ColorUtilities {
     }
 
     return NSColor(
-      srgbRed: mapped(components.red),
-      green: mapped(components.green),
-      blue: mapped(components.blue),
-      alpha: clampedUnit(components.alpha)
+      colorSpace: extendedDisplayP3ColorSpace,
+      components: [
+        mapped(components.red),
+        mapped(components.green),
+        mapped(components.blue),
+        clampedUnit(components.alpha)
+      ],
+      count: 4
     )
   }
 

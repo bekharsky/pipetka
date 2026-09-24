@@ -7,7 +7,7 @@ PRODUCT_NAME = Pipetka
 PRODUCT_BUNDLE_IDENTIFIER = com.kharion.pipetka
 
 // App Store version shown as CFBundleShortVersionString.
-MARKETING_VERSION = 1.0.14
+MARKETING_VERSION = 1.0.15
 
 // Local fallback build number. Xcode Cloud overwrites this from CI_BUILD_NUMBER.
 CURRENT_PROJECT_VERSION = 1

@@ -180,11 +180,10 @@ func swatchToolTip(
   for item: PickedColor,
   cssColorSpace: CSSColorSpace = .sRGB
 ) -> String {
-  let match = NamedColorLookup.nearestMatch(red: item.red, green: item.green, blue: item.blue)
-  let value = item.isExtendedRange
+  let value = item.hasExtendedColor
     ? formatColor(item, format: .extendedRGB, cssColorSpace: cssColorSpace)
     : formatColor(item, format: .hex)
-  return "\(match.name)\n\(value)"
+  return "\(namedColorName(for: item))\n\(value)"
 }
 
 struct PreviewImageView: View {
