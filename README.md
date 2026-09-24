@@ -81,7 +81,7 @@ osascript -e "do shell script \"killall Pipetka 2>/dev/null || true; rm -rf /App
 open -a /Applications/Pipetka.app
 ```
 
-Pipetka requests Screen Recording only when `Pick Color` is used, not on app launch. If the permission database needs to be cleared while debugging, reset only this app's entry and then relaunch it:
+Pipetka requests Screen Recording only when `Pick Color` is used, not on app launch. The first `Pick Color` shows the macOS system request. If it is denied, Pipetka returns to the app without opening a second dialog; a subsequent `Pick Color` shows Pipetka's own explanation and System Settings shortcut without repeating the system request. If the permission database needs to be cleared while debugging, reset only this app's entry and then relaunch it:
 
 ```bash
 tccutil reset ScreenCapture com.kharion.pipetka

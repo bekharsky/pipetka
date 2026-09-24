@@ -14,6 +14,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMe
   @IBOutlet weak var mainWindow: MainWindow!
 
   private static let showWindowAfterStatusBarPickKey = "ShowWindowAfterStatusBarPick"
+  private static let screenCaptureRequestAttemptedKey = "ScreenCaptureRequestAttempted"
 
   private var isMainWindowAlwaysOnTop = false
   private var hasRequestedScreenCaptureAccessThisLaunch = false
@@ -656,23 +657,31 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMe
     }
 
     if CGPreflightScreenCaptureAccess() {
+      UserDefaults.standard.removeObject(forKey: Self.screenCaptureRequestAttemptedKey)
       return true
     }
 
-    guard !hasRequestedScreenCaptureAccessThisLaunch else {
+    let requestWasAlreadyAttempted = hasRequestedScreenCaptureAccessThisLaunch
+      || UserDefaults.standard.bool(forKey: Self.screenCaptureRequestAttemptedKey)
+    guard !requestWasAlreadyAttempted else {
       showScreenAccessSettingsAlert()
       return false
     }
 
     hasRequestedScreenCaptureAccessThisLaunch = true
+    // CGRequestScreenCaptureAccess presents a system modal. Persist the fact
+    // that we have already asked so a denial cannot turn into a prompt loop
+    // after the app is relaunched or the downloaded bundle is replaced.
+    UserDefaults.standard.set(true, forKey: Self.screenCaptureRequestAttemptedKey)
     NSApp.activate(ignoringOtherApps: true)
     _ = CGRequestScreenCaptureAccess()
 
     if CGPreflightScreenCaptureAccess() {
+      UserDefaults.standard.removeObject(forKey: Self.screenCaptureRequestAttemptedKey)
       return true
     }
 
-    showScreenAccessSettingsAlert()
+    showMainWindow()
     return false
   }
 
@@ -682,7 +691,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMe
 
     let alert = NSAlert()
     alert.messageText = "Screen access is not enabled"
-    alert.informativeText = "Allow Pipetka in System Settings, then quit and reopen the app before picking a screen color."
+    alert.informativeText = "Allow Pipetka in System Settings → Privacy & Security → Screen Recording, then try Pick again."
     alert.alertStyle = .warning
     alert.addButton(withTitle: "Open System Settings")
     alert.addButton(withTitle: "Quit Pipetka")
