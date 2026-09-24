@@ -190,7 +190,7 @@ class PipetkaTests: XCTestCase {
     XCTAssertFalse(item.isHDR)
     XCTAssertTrue(item.isWideGamut)
     XCTAssertEqual(formatColor(item, format: .hex), "#000000")
-    XCTAssertEqual(namedColorName(for: item), "P3 color")
+    XCTAssertEqual(namedColorName(for: item), "Black")
     XCTAssertEqual(historySubtitle(for: item), namedColorName(for: item))
   }
 
