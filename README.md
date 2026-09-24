@@ -161,7 +161,7 @@ The GitHub Release workflow is intentionally independent from the App Store buil
 
 3. GitHub Actions builds, notarizes, and publishes the GitHub Release for that tag.
 
-Xcode Cloud should use a separate workflow whose start condition is a branch change on `release`. Disable its start conditions for `main` and pull requests if App Store builds should not run during ordinary development. To make an App Store build, merge the desired `main` state into `release` and push `release`; that push starts Xcode Cloud only and does not start the GitHub Release workflow.
+Xcode Cloud should use a separate workflow whose start condition is a branch change on `release`. Disable its start conditions for `main` and pull requests if App Store builds should not run during ordinary development. Keep GitHub Actions workflow files on `main`; the `release` branch is for Xcode Cloud only. To make an App Store build, merge the desired `main` state into `release` and push `release`; that push starts Xcode Cloud only and does not start the GitHub Release workflow.
 
 For non-release builds, run the manually triggered `SDK Builds` workflow. It builds both modern variants in parallel and uploads two unsigned ZIPs as Actions artifacts without creating a GitHub Release:
 
