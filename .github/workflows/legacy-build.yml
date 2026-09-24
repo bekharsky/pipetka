@@ -14,12 +14,14 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - name: Legacy SDK (macOS 15 / Xcode 16.4)
-            runner: macos-15
-            artifact_suffix: macos15-sdk15
-          - name: Modern SDK (macOS 26 / Xcode 26)
+          - name: Compatibility SDK (macOS 26 / Xcode 26)
             runner: macos-26
             artifact_suffix: macos26-sdk26
+            deployment_target: "15.0"
+          - name: Modern SDK (macOS 27 / Xcode 27)
+            runner: xcode-27
+            artifact_suffix: macos27-sdk27
+            deployment_target: "15.0"
 
     steps:
       - name: Checkout
@@ -49,6 +51,7 @@ jobs:
             -configuration Release \
             -sdk macosx \
             -derivedDataPath "$derived_data_path" \
+            MACOSX_DEPLOYMENT_TARGET="${{ matrix.deployment_target }}" \
             CODE_SIGNING_ALLOWED=NO \
             CODE_SIGNING_REQUIRED=NO \
             build
