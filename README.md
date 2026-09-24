@@ -166,9 +166,9 @@ Xcode Cloud should use a separate workflow whose start condition is a branch cha
 For non-release builds, run the manually triggered `SDK Builds` workflow. It builds both variants in parallel and uploads two unsigned ZIPs as Actions artifacts without creating a GitHub Release:
 
 - `macos-15` — Xcode 16.4 / macOS 15.5 SDK, for the older toolchain.
-- `xcode-27` — macOS 27 / Xcode 27 SDK, for the current system appearance and APIs.
+- `macos-26` — macOS 26 / Xcode 26 SDK, for the current supported system appearance and APIs.
 
-The `xcode-27` runner is selected explicitly instead of using a moving `macos-latest` label, so the modern artifact stays tied to the macOS 27 toolchain.
+The `macos-26` runner is selected explicitly instead of using a moving `macos-latest` label, so the modern artifact stays tied to the macOS 26 toolchain.
 
 While moving the picker, the lens uses the fast SDR sample only. HDR is sampled once on confirmation and preserved in CSS profile and SwiftUI output. The CSS profile selector can emit extended sRGB, Display P3, Rec. 2020, or Rec. 2100 PQ/HLG/Linear. Components below 0 or above 1 are valid extended-range/out-of-gamut values in the linear and wide-gamut forms; PQ and HLG encode into their nominal display range. After confirmation, history swatches keep the HDR color when the display supports it, while HEX/RGB/HSL show a tone-mapped SDR approximation marked as `HDR`. If the HDR service does not answer promptly or returns an invalid buffer, the picker safely keeps the SDR sample instead of hanging or storing corrupted components.
 
