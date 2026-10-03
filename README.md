@@ -2,6 +2,8 @@
 
 A native macOS color picker app with AI assistant integration.
 
+[Website](https://bekharsky.github.io/pipetka/) · [GitHub Releases](https://github.com/bekharsky/pipetka/releases) · [Buy Me a Coffee](https://buymeacoffee.com/bekharsky)
+
 ## Features
 
 ### Desktop App
@@ -27,9 +29,12 @@ The MCP server allows AI assistants to help you pick colors and extract palettes
 
 ## Screenshots
 
-<img width="532" height="612" alt="Screenshot 2026-04-27 at 9 54 07" src="https://github.com/user-attachments/assets/84d55462-6ff0-49db-916a-61a263a0d2e8" />
-<img width="532" height="612" alt="Screenshot 2026-04-27 at 9 54 28" src="https://github.com/user-attachments/assets/5e48a29d-3f1a-4151-a9e3-1d3575e84786" />
-<img width="532" height="612" alt="Screenshot 2026-04-27 at 9 54 38" src="https://github.com/user-attachments/assets/7723da17-e68c-4c61-b007-dde71c0ffb29" />
+These app screenshots use original fictional moodboards and demo colors.
+
+![Pipetka extracting a palette from a fictional Atelier moodboard](docs/assets/pipetka-palette.png)
+![Pipetka showing a bright Prismatic palette in HEX format](docs/assets/pipetka-neon.png)
+
+Watch the [short demo video](docs/assets/pipetka-demo.mp4) or visit the [Pipetka website](https://bekharsky.github.io/pipetka/).
 
 ## Architecture
 

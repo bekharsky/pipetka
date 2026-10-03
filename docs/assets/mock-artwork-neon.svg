@@ -1,0 +1,62 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="1000" viewBox="0 0 1600 1000">
+  <title>Mock moodboard: Prismatic, a fictional digital brand palette</title>
+  <desc>Original geometric eight-color artwork used as sample input for Pipetka's image palette demo.</desc>
+  <rect width="400" height="500" fill="#031A4D"/>
+  <path d="M0 425 400 91v409H0z" fill="#0B49C8"/>
+  <circle cx="300" cy="184" r="84" fill="#FFB13D"/>
+  <text x="32" y="54" fill="#D2DCE8" font-family="-apple-system, BlinkMacSystemFont, sans-serif" font-size="17" letter-spacing="4">PRISMATIC / IDENTITY 02</text>
+  <text x="32" y="464" fill="#D2DCE8" font-family="Georgia, serif" font-size="27" font-style="italic">Colour in motion</text>
+
+  <rect x="400" width="400" height="500" fill="#0B49C8"/>
+  <path d="M400 0h400v500H400z" fill="#04B6E3" clip-path="inset(0 0 0 58%)"/>
+  <circle cx="620" cy="248" r="141" fill="#031A4D"/>
+  <circle cx="620" cy="248" r="101" fill="#4BF0D0"/>
+  <circle cx="620" cy="248" r="57" fill="#0B49C8"/>
+  <text x="434" y="54" fill="#D2DCE8" font-family="-apple-system, BlinkMacSystemFont, sans-serif" font-size="17" letter-spacing="4">ENERGY / 01</text>
+  <text x="434" y="464" fill="#031A4D" font-family="Georgia, serif" font-size="27" font-style="italic">Signal to colour</text>
+
+  <rect x="800" width="400" height="500" fill="#04B6E3"/>
+  <path d="M800 366c70-150 200-206 400-173v307H800z" fill="#4BF0D0"/>
+  <path d="M800 438c102-121 237-143 400-59v121H800z" fill="#D2ED53"/>
+  <circle cx="1114" cy="123" r="55" fill="#031A4D"/>
+  <text x="834" y="54" fill="#031A4D" font-family="-apple-system, BlinkMacSystemFont, sans-serif" font-size="17" letter-spacing="4">WAVE / 02</text>
+  <text x="834" y="464" fill="#031A4D" font-family="Georgia, serif" font-size="27" font-style="italic">Bright side up</text>
+
+  <rect x="1200" width="400" height="500" fill="#4BF0D0"/>
+  <path d="m1305 95 105 159-105 160-105-160z" fill="#682DDB"/>
+  <path d="m1410 95 105 159-105 160-105-160z" fill="#EA508E"/>
+  <circle cx="1410" cy="254" r="40" fill="#FFB13D"/>
+  <text x="1234" y="54" fill="#031A4D" font-family="-apple-system, BlinkMacSystemFont, sans-serif" font-size="17" letter-spacing="4">PRISM / 03</text>
+  <text x="1234" y="464" fill="#031A4D" font-family="Georgia, serif" font-size="27" font-style="italic">Two sides of light</text>
+
+  <rect y="500" width="400" height="500" fill="#D2ED53"/>
+  <circle cx="198" cy="749" r="147" fill="#031A4D"/>
+  <circle cx="198" cy="749" r="110" fill="#D2ED53"/>
+  <path d="M51 749h294M198 602v294" stroke="#EA508E" stroke-width="23"/>
+  <circle cx="198" cy="749" r="45" fill="#FFB13D"/>
+  <text x="32" y="554" fill="#031A4D" font-family="-apple-system, BlinkMacSystemFont, sans-serif" font-size="17" letter-spacing="4">PULSE / 04</text>
+  <text x="32" y="964" fill="#031A4D" font-family="Georgia, serif" font-size="27" font-style="italic">A faster feeling</text>
+
+  <rect x="400" y="500" width="400" height="500" fill="#FFB13D"/>
+  <path d="M453 664h294v161H453z" fill="#EA508E"/>
+  <path d="M453 715h294M453 774h294" stroke="#031A4D" stroke-width="15"/>
+  <circle cx="483" cy="664" r="15" fill="#D2ED53"/>
+  <circle cx="718" cy="825" r="15" fill="#4BF0D0"/>
+  <text x="434" y="554" fill="#031A4D" font-family="-apple-system, BlinkMacSystemFont, sans-serif" font-size="17" letter-spacing="4">GRID / 05</text>
+  <text x="434" y="964" fill="#031A4D" font-family="Georgia, serif" font-size="27" font-style="italic">Useful by design</text>
+
+  <rect x="800" y="500" width="400" height="500" fill="#EA508E"/>
+  <path d="M874 900V642h252v258H874zm53-53h146V695H927z" fill="#682DDB" fill-rule="evenodd"/>
+  <circle cx="1000" cy="772" r="44" fill="#4BF0D0"/>
+  <text x="834" y="554" fill="#031A4D" font-family="-apple-system, BlinkMacSystemFont, sans-serif" font-size="17" letter-spacing="4">MOTION / 06</text>
+  <text x="834" y="964" fill="#031A4D" font-family="Georgia, serif" font-size="27" font-style="italic">Make it move</text>
+
+  <rect x="1200" y="500" width="400" height="500" fill="#682DDB"/>
+  <path d="M1262 632h276v35h-276zm0 73h222v35h-222zm0 73h250v35h-250zm0 73h183v35h-183z" fill="#D2DCE8"/>
+  <circle cx="1523" cy="649" r="10" fill="#FFB13D"/>
+  <circle cx="1467" cy="722" r="10" fill="#4BF0D0"/>
+  <circle cx="1495" cy="795" r="10" fill="#D2ED53"/>
+  <circle cx="1428" cy="868" r="10" fill="#EA508E"/>
+  <text x="1234" y="554" fill="#D2DCE8" font-family="-apple-system, BlinkMacSystemFont, sans-serif" font-size="17" letter-spacing="4">TOKENS / 08</text>
+  <text x="1234" y="964" fill="#D2DCE8" font-family="Georgia, serif" font-size="27" font-style="italic">Ready for a system</text>
+</svg>
