@@ -1,0 +1,68 @@
+name: Deploy Pipetka site to GitHub Pages
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "docs/**"
+      - "README.md"
+      - ".github/workflows/pages.yml"
+  release:
+    types: [published]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: github-pages
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+
+      - name: Refresh the download from the latest GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          release_dir="$RUNNER_TEMP/pipetka-latest-release"
+          mkdir -p "$release_dir"
+
+          if gh release view --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh release download \
+              --repo "$GITHUB_REPOSITORY" \
+              --pattern "Pipetka-*-macOS.zip" \
+              --dir "$release_dir"
+            archives=("$release_dir"/Pipetka-*-macOS.zip)
+            if (( ${#archives[@]} == 1 )); then
+              cp "${archives[0]}" ./docs/assets/Pipetka-macOS.zip
+            else
+              echo "Expected one Pipetka release archive, found ${#archives[@]}."
+              exit 1
+            fi
+          else
+            echo "No GitHub Release exists yet; publishing the page without a download archive."
+          fi
+
+      - name: Configure GitHub Pages
+        uses: actions/configure-pages@v5
+
+      - name: Upload site artifact
+        uses: actions/upload-pages-artifact@v4
+        with:
+          path: ./docs
+
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

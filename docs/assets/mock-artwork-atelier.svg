@@ -1,0 +1,60 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="1000" viewBox="0 0 1600 1000">
+  <title>Mock moodboard: Atelier No. 08</title>
+  <desc>Original geometric color study made from eight fictional brand colors for Pipetka's palette extraction demo.</desc>
+  <rect width="400" height="500" fill="#193B45"/>
+  <circle cx="192" cy="247" r="127" fill="#E2B668"/>
+  <path d="M0 366c103-81 198-73 289-24 45 24 81 32 111 25v133H0z" fill="#477D70"/>
+  <path d="M0 425c122-43 213-27 306 16 37 17 68 20 94 13v46H0z" fill="#83A992"/>
+  <text x="34" y="54" fill="#E9DDC6" font-family="-apple-system, BlinkMacSystemFont, sans-serif" font-size="17" letter-spacing="4">ATELIER / COLOUR STUDY 08</text>
+  <text x="34" y="464" fill="#E9DDC6" font-family="Georgia, serif" font-size="26" font-style="italic">A softer kind of signal</text>
+
+  <rect x="400" width="400" height="500" fill="#477D70"/>
+  <path d="M494 251c0-81 65-147 147-147s147 66 147 147-65 147-147 147-147-66-147-147Zm54 0c0 51 42 93 93 93s93-42 93-93-42-93-93-93-93 42-93 93Z" fill="#E9DDC6" fill-rule="evenodd"/>
+  <circle cx="641" cy="251" r="38" fill="#C56B50"/>
+  <text x="434" y="54" fill="#E9DDC6" font-family="-apple-system, BlinkMacSystemFont, sans-serif" font-size="17" letter-spacing="4">FORM / 01</text>
+  <text x="434" y="464" fill="#202C3B" font-family="Georgia, serif" font-size="27" font-style="italic">Quiet contrast</text>
+
+  <rect x="800" width="400" height="500" fill="#83A992"/>
+  <path d="M800 337 930 216l86 82 83-131 101 102v231H800z" fill="#193B45"/>
+  <path d="m800 391 128-88 106 63 87-80 79 57v157H800z" fill="#C56B50"/>
+  <circle cx="1110" cy="156" r="48" fill="#E9DDC6"/>
+  <text x="834" y="54" fill="#193B45" font-family="-apple-system, BlinkMacSystemFont, sans-serif" font-size="17" letter-spacing="4">SHAPE / 02</text>
+  <text x="834" y="464" fill="#E9DDC6" font-family="Georgia, serif" font-size="27" font-style="italic">A slower horizon</text>
+
+  <rect x="1200" width="400" height="500" fill="#E2B668"/>
+  <path d="M1250 171h297M1250 214h236M1250 257h275M1250 300h208" stroke="#202C3B" stroke-width="17" stroke-linecap="round" opacity=".85"/>
+  <circle cx="1505" cy="384" r="68" fill="#9C6E8A"/>
+  <text x="1234" y="54" fill="#202C3B" font-family="-apple-system, BlinkMacSystemFont, sans-serif" font-size="17" letter-spacing="4">TONE / 03</text>
+  <text x="1234" y="464" fill="#193B45" font-family="Georgia, serif" font-size="27" font-style="italic">Warmth, in balance</text>
+
+  <rect y="500" width="400" height="500" fill="#C56B50"/>
+  <path d="M0 790c79-117 188-177 325-181 29-1 54 1 75 6v385H0z" fill="#9C6E8A"/>
+  <path d="M0 871c112-56 248-44 400 36v93H0z" fill="#E9DDC6"/>
+  <circle cx="283" cy="647" r="50" fill="#E2B668"/>
+  <text x="34" y="554" fill="#202C3B" font-family="-apple-system, BlinkMacSystemFont, sans-serif" font-size="17" letter-spacing="4">MATERIAL / 04</text>
+  <text x="34" y="964" fill="#202C3B" font-family="Georgia, serif" font-size="27" font-style="italic">Clay after rain</text>
+
+  <rect x="400" y="500" width="400" height="500" fill="#E9DDC6"/>
+  <path d="M471 676c0-43 35-78 78-78h102c43 0 78 35 78 78v101c0 43-35 78-78 78H549c-43 0-78-35-78-78z" fill="#477D70"/>
+  <path d="M526 727c0-57 47-104 104-104s104 47 104 104-47 103-104 103-104-46-104-103Z" fill="#E2B668"/>
+  <text x="434" y="554" fill="#193B45" font-family="-apple-system, BlinkMacSystemFont, sans-serif" font-size="17" letter-spacing="4">TYPE / 05</text>
+  <text x="549" y="747" text-anchor="middle" fill="#202C3B" font-family="Georgia, serif" font-size="65" font-style="italic">Aa</text>
+  <text x="434" y="964" fill="#193B45" font-family="Georgia, serif" font-size="27" font-style="italic">A human serif</text>
+
+  <rect x="800" y="500" width="400" height="500" fill="#9C6E8A"/>
+  <circle cx="1000" cy="740" r="150" fill="#E9DDC6"/>
+  <circle cx="1000" cy="740" r="111" fill="#9C6E8A"/>
+  <circle cx="1000" cy="740" r="69" fill="#E2B668"/>
+  <circle cx="1000" cy="740" r="27" fill="#C56B50"/>
+  <text x="834" y="554" fill="#202C3B" font-family="-apple-system, BlinkMacSystemFont, sans-serif" font-size="17" letter-spacing="4">RHYTHM / 06</text>
+  <text x="834" y="964" fill="#E9DDC6" font-family="Georgia, serif" font-size="27" font-style="italic">The last light</text>
+
+  <rect x="1200" y="500" width="400" height="500" fill="#202C3B"/>
+  <path d="M1288 646h224M1288 709h224M1288 772h224M1288 835h224" stroke="#477D70" stroke-width="15" stroke-linecap="round"/>
+  <circle cx="1288" cy="646" r="18" fill="#E2B668"/>
+  <circle cx="1512" cy="709" r="18" fill="#C56B50"/>
+  <circle cx="1288" cy="772" r="18" fill="#83A992"/>
+  <circle cx="1512" cy="835" r="18" fill="#9C6E8A"/>
+  <text x="1234" y="554" fill="#E9DDC6" font-family="-apple-system, BlinkMacSystemFont, sans-serif" font-size="17" letter-spacing="4">PALETTE / 08</text>
+  <text x="1234" y="964" fill="#E9DDC6" font-family="Georgia, serif" font-size="27" font-style="italic">A small collection</text>
+</svg>
