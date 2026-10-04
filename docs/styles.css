@@ -62,6 +62,10 @@ img, video { display: block; max-width: 100%; }
 .site-header nav { display: flex; align-items: center; gap: 35px; color: var(--muted); font-size: 13px; font-weight: 600; }
 .site-header nav a, .footer-links a, .text-link, .github-link { transition: color .2s ease; }
 .site-header nav a:hover, .footer-links a:hover, .text-link:hover, .github-link:hover { color: var(--mint); }
+.header-actions { display: flex; align-items: center; gap: 12px; }
+.github-header { display: inline-flex; align-items: center; gap: 4px; color: #c1cdd2; font-size: 12px; font-weight: 700; transition: color .2s ease; }
+.github-header:hover { color: var(--mint); }
+.github-header span { color: var(--mint); }
 .coffee-link { display: inline-flex; align-items: center; gap: 8px; border: 1px solid rgba(255, 189, 102, .38); border-radius: 999px; padding: 9px 14px; color: #ffcf91; font-size: 12px; font-weight: 700; transition: transform .2s ease, background .2s ease, border-color .2s ease; }
 .coffee-link:hover { transform: translateY(-1px); border-color: rgba(255, 189, 102, .7); background: rgba(255, 189, 102, .08); }
 .coffee-glyph { color: var(--orange); font-size: 16px; line-height: 1; }
@@ -245,6 +249,8 @@ h1, h2, h3, p { margin-top: 0; }
   .brand { gap: 8px; font-size: 16px; }
   .brand img { width: 31px; height: 31px; }
   .site-header nav { display: none; }
+  .header-actions { gap: 10px; }
+  .github-header { font-size: 10px; }
   .coffee-link { gap: 6px; padding: 8px 10px; font-size: 10px; }
   .hero { min-height: auto; gap: 12px; padding: 69px 0 71px; }
   .hero h1 { font-size: clamp(48px, 13vw, 65px); }
